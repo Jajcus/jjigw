@@ -590,6 +590,10 @@ class IRCSession:
             return 0
 
     def channel_left(self,channel):
+        try:
+            del self.channels[normalize(channel.name)]
+        except KeyError:
+            pass
         if not channel.room_jid:
             return
         if channel.room_jid not in self.used_for:

@@ -348,8 +348,11 @@ class Channel:
         except ValueError:
             pass
         user.leave_channel(self)
-        self.send_notice_message(u"%s has left"
-                % (unicode(user.nick,self.encoding,"replace"),))
+        if self.session.check_prefix(prefix):
+            self.session.channel_left(self)
+        else:
+            self.send_notice_message(u"%s has left"
+                    % (unicode(user.nick,self.encoding,"replace"),))
 
     def irc_cmd_KICK(self,prefix,command,params):
         actor=self.session.get_user(prefix)
@@ -368,6 +371,8 @@ class Channel:
             if r:
                 iq=r.stanza.make_result_response()
                 self.session.component.send(iq)
+        if self.session.check_nick(params[1]):
+            self.session.channel_left(self)
 
     def irc_cmd_PRIVMSG(self,prefix,command,params):
         self.irc_message(prefix,command,params)
