@@ -223,10 +223,12 @@ class IRCSession:
                 elif self.socket in ed:
                     try:
                         self.socket.close()
-                    except:
+                    except (socket.error),err:
+                        self.__logger.debug("Error on receive: %r" % (err,))
                         pass
                     self.socket=None
-                    self.exited=1
+                    # suppose error ocurred, wh'll try reconnect
+                    self.exited=0
             finally:
                 self.lock.release()
         self.lock.acquire()
@@ -251,12 +253,19 @@ class IRCSession:
         if self.socket:
             self.socket.close()
             self.socket=None
+        self.exited = 0
         server=self.servers_left.pop(0)
         self.__logger.debug("Trying to connect to %r" % (server,))
         if self.raw_channel:
             self.pass_message_to_raw_channel("Connecting to %s:%s..." % (server.host,server.port))
         try:
             self.socket=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+            if server.bind:
+                self.__logger.debug("Binding local socket to: %s:%d" 
+                        % (server.bind, server.bindport))
+                self.socket.bind((server.bind, server.bindport))
+                if not self.socket:
+                    self.__logger.debug("Error binding interface")
             self.socket.connect((server.host,server.port))
         except (IOError,OSError,socket.error),err:
             self.__logger.debug("Server connect error: %r" % (err,))
@@ -274,6 +283,7 @@ class IRCSession:
             return
         if self.raw_channel:
             self.pass_message_to_raw_channel("Connected.")
+        self.__logger.debug("Connected.")
         self._send("NICK %s" % (self.nick,))
         user=md5.new(self.jid.bare().as_string()).hexdigest()[:64]
         self.conninfo=ConnectionInfo(self.socket,user)

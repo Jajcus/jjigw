@@ -46,6 +46,10 @@ class ServerConfig:
         except ValueError:
             print >>sys.stderr,"Bad port value: %r, using default: 6667" % (self.port,)
             self.port=6667
+        self.bindport=node.prop("bindport")
+        if not self.bindport:
+            self.bindport=0
+        self.bind=node.prop("bind")
     def __repr__(self):
         return "<ServerConfig %s:%s/>" % (self.host,self.port)
 
@@ -53,6 +57,8 @@ class ChannelConfig:
     def __init__(self,node):
         self.name=node.getContent()
         self.encoding=node.prop("encoding")
+        self.description=node.prop("description")
+        self.browseable=node.prop("browseable")
 
 class NetworkConfig:
     def __init__(self,node):
@@ -75,7 +81,7 @@ class NetworkConfig:
         self.max_channel_length=int(node.prop("max_nick_length"))
     def get_servers(self):
         r=self.servers
-        self.servers=self.servers[-1:]+self.servers[1:]
+        self.servers=self.servers[-1:]+self.servers[:-1]
         return r
     def get_channel_config(self,channel):
         return self.channels.get(normalize(channel))

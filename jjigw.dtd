@@ -22,7 +22,9 @@
 	>
 <!ELEMENT server 	(#PCDATA) >
 <!ATTLIST server 
-	port 		CDATA		"6667">
+	port 		CDATA		"6667"
+	bind		CDATA		#IMPLIED
+	bindport	CDATA		"0">
 <!ELEMENT channel 	(#PCDATA) >
 <!ATTLIST channel 
 	encoding	CDATA		#IMPLIED
