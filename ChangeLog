@@ -1,5 +1,8 @@
 2004-07-21  Jacek Konieczny  <jajcus@bnet.pl>
 
+	* jjigw/ircsession.py:
+	- ignore socket errors when disconnecting
+
 	* Makefile: *** Version: 0.2 ***
 
 	* jjigw/ircsession.py:
