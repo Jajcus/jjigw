@@ -622,7 +622,7 @@ class IRCSession:
         except:
             pass
         if not self.used_for:
-            self.disconnect(stanza.get_status())
+            self.disconnect("Quit")
 
     def get_channel(self,jid):
         channel_name=jid.node
