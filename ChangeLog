@@ -1,5 +1,11 @@
 2004-05-09  Jacek Konieczny  <jajcus@bnet.pl>
 
+	* jjigw/component.py:
+	- always use '.' as disco node part delimiter
+
+	* jjigw.xml.example:
+	- updated
+
 	* jjigw/channel.py, jjigw/component.py, jjigw/ircsession.py:
 	- raw channel ("#" conference room) - for debuging
 	- gateway status accessible selected users (administrators defined in config file) via Disco
