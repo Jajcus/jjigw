@@ -23,7 +23,7 @@ import threading
 import string
 
 import pyxmpp.jabberd
-from pyxmpp import Presence
+from pyxmpp import Presence,Message
 from pyxmpp.jabber.muc import MUC_ADMIN_NS,MUC_NS
 from pyxmpp.jabber.muc import MucPresence,MucIq,MucAdminQuery
 from pyxmpp.jabber.disco import DiscoItems,DiscoItem,DiscoInfo,DiscoIdentity
