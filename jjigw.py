@@ -6,7 +6,6 @@ import threading
 import re
 import select
 import socket
-import user
 import md5
 import string
 import random
@@ -520,10 +519,10 @@ class Channel:
 	    params_str=" "+params_str
 	if "!" in prefix:
 	    nick,iuser=prefix.split("!",1)
-	    iuser="(%s)" % (user,)
+	    iuser="(%s)" % (iuser,)
 	else:
 	    nick,iuser=prefix,""
-	self.send_notice_message(u"Mode chage: [%s%s] by %s%s" 
+	self.send_notice_message(u"Mode change: [%s%s] by %s%s" 
 		% (unicode(params[1],self.encoding,"replace"),
 			unicode(params_str,self.encoding,"replace"),
 			unicode(nick,self.encoding,"replace"),
