@@ -469,9 +469,6 @@ class IRCSession:
             self.debug("User: %r not found" % (params[4],))
         else:
             user.whoreply(params)
-            for c in user.channels.keys():
-                channel=user.channels[c]
-                self.component.send(channel.get_user_presence(user))
 
     def send_error_message(self,source,cond,text):
         text=remove_evil_characters(text)
