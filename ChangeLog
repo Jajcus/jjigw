@@ -1,6 +1,9 @@
 2004-02-14  Jacek Konieczny  <jajcus@bnet.pl>
 
 	* jjigw.py:
+	- remove evil characters from topic and error messages
+
+	* jjigw.py:
 	- show channel mode changes
 
 	* jjigw.py:
