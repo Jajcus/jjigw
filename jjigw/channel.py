@@ -209,7 +209,8 @@ class Channel:
         self.irc_error_response(prefix,command,params,["MODE"],"feature-not-implemented")
 
     def irc_cmd_477(self,prefix,command,params): # ERR_NOCHANMODES
-        self.irc_error_response(prefix,command,params,["TOPIC","MODE"],"not-acceptable")
+        # this often is not an error
+        #self.irc_error_response(prefix,command,params,["TOPIC","MODE"],"not-acceptable")
 
     def irc_error_response(self,prefix,command,params,requests,condition):
         r=self.requests.get(requests)
