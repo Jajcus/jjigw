@@ -2,16 +2,49 @@
 <!DOCTYPE jjigw SYSTEM "jjigw.dtd">
 <jjigw>
 
+<!--
+  Settings for connection with the Jabber server.
+  
+  For jabberd2 this should match <local/> section of router.xml.
+  
+  For jabberd 1.4 a <service/> section for jjigw  should be added to jabber
+  xml. It should contain <host/> element for each domain (network jid defined below)
+  to be handled by the component and <accept/> element with <ip/>, <port/>, <secret/>
+  children matching the settings below.
+-->
 <connect>
 	<host>127.0.0.1</host>
 	<port>5347</port>
 	<secret>topsecret</secret>
 </connect>
 
+<!-- currently only the first network will work, so choose it carefully :) -->
+
+<!-- 
+  freenode network with #pld channel configured to use ISO 8859-2 encoding.
+  Other channels will still be available, but only us-ascii characters will work.
+-->
+<network jid="freenode.localhost">
+	<server>irc.freenode.net</server>
+	<channel encoding="iso-8859-2">#pld</channel>
+</network>
+
+<!-- 
+  Polish IRCNet for Polish users :) 
+  This settings are fine here in Poland, where most people use ISO 8859-2,
+  but may be inappropriate for other IRCNet users and channels.
+  -->
 <network jid="ircnet.localhost" encoding="iso-8859-2">
 	<server>warszawa.irc.pl</server>
 	<server>lublin.irc.pl</server>
 	<server>poznan.irc.pl</server>
+</network>
+
+<!-- 
+  A Russian IRC network, alows 8bit characters in nicknames.
+-->
+<network jid="rusnet.localhost" encoding="koi8-r" nicks_8bit="yes">
+	<server>irc.spbu.ru</server>
 </network>
 
 </jjigw>
