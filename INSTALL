@@ -1,0 +1,26 @@
+
+1. Requirements:
+
+	- Python
+	- PyXMPP - http://pyxmpp.jabberstudio.org/
+
+  For latest CVS version of JJIGW you will probably need the latest CVS version of PyXMPP.
+
+2. Configuration:
+
+  - copy jjigw.xml.example to jjigw.xml and edit the latter according to your needs
+  - configure your jabber server for connection from the gateway. Jabberd2 does not
+    need any extra configuration (just jjigw.xml must much jabberd2 router
+    configuration), Jabberd 1.4.x requires, at least, <service> section with
+    host/port/secret matching those in jjigw.xml.
+
+3. Running:
+
+  - make sure PyXMPP is installed in your system and Python interpreter can find it
+    or link "pyxmpp" from build/lib* directory in PyXMPP sources to jjigw directory
+  - start jjigw.py
+
+4. Usage:
+
+  - use your favorite Jabber client to join a room named like an IRC channel
+    in the configured network
