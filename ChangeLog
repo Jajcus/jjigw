@@ -1,3 +1,9 @@
+2004-02-15  Jacek Konieczny  <jajcus@bnet.pl>
+
+	* jjigw.py:
+	- Request and RequestQueue classes
+	- confirm kick with <iq type="result"/> response
+
 2004-02-14  Jacek Konieczny  <jajcus@bnet.pl>
 
 	* jjigw.py:
