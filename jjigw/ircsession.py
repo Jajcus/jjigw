@@ -72,7 +72,7 @@ class IRCSession:
         self.channels={}
         self.users={}
         self.raw_channel=0
-        self.user=IRCUser(self,nick)
+        self.user=self.get_user(nick)
         self.thread.start()
 
     def register_user(self,user):
@@ -103,17 +103,13 @@ class IRCSession:
         finally:
             self.lock.release()
 
-    def get_user(self,prefix=None,create=1):
-        if prefix:
-            if "!" in prefix:
-                nick=prefix.split("!",1)[0]
-            else:
-                nick=prefix
-            if not self.network.valid_nick(nick,0):
-                return None
+    def get_user(self,prefix,create=1):
+        if "!" in prefix:
+            nick=prefix.split("!",1)[0]
         else:
-            prefix=self.nick
-            nick=self.nick
+            nick=prefix
+        if not self.network.valid_nick(nick,0):
+            return None
         nnick=normalize(nick)
         if self.users.has_key(nnick):
             return self.users[nnick]

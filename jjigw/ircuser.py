@@ -110,12 +110,15 @@ class IRCUser:
             channel.sync_user(self)
 
     def jid(self):
+        if self.user and self.host:
+            res=unicode(self.user+'@'+self.host,self.session.default_encoding,"replace")
+        else:
+            res=u""
         return JID(nick_to_node(self.nick,self.session.default_encoding),
-                self.session.network.jid.domain,
-                unicode(self.user+'@'+self.host,self.session.default_encoding,"replace"))
+                self.session.network.jid.domain,res)
 
     def __repr__(self):
-        return "<IRCUser %r>" % (self.nick,)
+        return "<IRCUser %r: %r>" % (id(self),self.nick)
 
     def debug(self,msg):
         return self.session.debug(msg)

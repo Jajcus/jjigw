@@ -44,7 +44,7 @@ class Channel:
         else:
             self.encoding=session.default_encoding
         self.modes={}
-        self.users=[self.session.get_user()]
+        self.users=[self.session.user]
         self.muc=0
         self.requests=RequestQueue(10)
 
@@ -142,6 +142,7 @@ class Channel:
         return p
 
     def nick_changed(self,oldnick,user):
+        self.debug("Nick changed: %r -> %r" % (oldnick,user.nick))
         p_unaval=self.get_user_presence(user,nick=user.nick,status=303)
         p_unaval.set_type("unavailable")
         p_unaval.set_show(None)
@@ -305,6 +306,7 @@ class Channel:
             actor_jid=self.nick_to_jid(actor.nick)
         else:
             actor_jid=None
+        self.debug("Mode changed: %r by %r" % (user.nick,actor_jid))
         p=self.get_user_presence(user,actor_jid)
         if actor:
             by=u" by %s" % (unicode(actor.nick,self.encoding,"replace"),)
