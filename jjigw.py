@@ -300,8 +300,8 @@ class Channel:
 	    p=self.get_user_presence(user)
 	    self.session.component.send(p)
 
-    def send_notice_message(self,msg):
-	if not self.state or self.muc:
+    def send_notice_message(self,msg,not_in_muc=1):
+	if not self.state or (self.muc and not_in_muc):
 	    return
 	m=Message(fr=self.room_jid.bare(),to=self.session.jid,type="groupchat",body=msg)
 	self.session.component.send(m)
@@ -418,7 +418,7 @@ class Channel:
 		del self.modes[m]
 	    except KeyError:
 		pass
-	self.irc_cmd_MODE(prefix,command,params)
+	self.irc_mode_changed(prefix,command,params)
 	
     def irc_cmd_482(self,prefix,command,params): # ERR_CHANOPRIVSNEEDED
 	stanza=self.requests.get("TOPIC")
@@ -451,12 +451,21 @@ class Channel:
 	self.session.component.send(m)
 	
     def irc_cmd_MODE(self,prefix,command,params):
-	self.debug("irc_cmd_mode(%r,%r,%r)" % (prefix,command,params))
-	actor=self.session.get_user(prefix)
-	self.debug("irc_cmd_mode: actor=%r" % (actor,))
 	if len(params)<2:
 	    self.debug("No parameters in received MODE")
 	    return
+	params_str=string.join(params[2:]," ").strip()
+	if params_str:
+	    params_str=" "+params_str
+	self.send_notice_message(u"Mode chage: [%s%s] by %s" 
+		% (unicode(params[1],self.encoding,"replace"),
+			unicode(params_str,self.encoding,"replace"),
+			unicode(prefix,self.encoding,"replace")),
+		0)
+	self.irc_mode_changed(prefix,command,params)
+
+    def irc_mode_changed(self,prefix,command,params):
+	actor=self.session.get_user(prefix)
 	modes=params[1]
 	params=params[2:]
 	pm=None
