@@ -1,5 +1,8 @@
 2004-02-11  Jacek Konieczny  <jajcus@bnet.pl>
 
+	* TODO, jjigw.dtd, jjigw.py, spidentd.py:
+	- working ident support
+
 	* spidentd.py:
 	- programming seems to work :)
 
