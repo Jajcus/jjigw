@@ -69,7 +69,7 @@ def channel_to_node(ch,encoding):
 def node_to_nick(n,encoding,network):
     s=n.encode(encoding,"strict")
     s=escape_node_string(s)
-    if not network.valid_nickk(s):
+    if not network.valid_nick(s):
 	raise ValueError,"Bad nick name: %r" % (s,)
     return s
 
@@ -77,6 +77,7 @@ def nick_to_node(ch,encoding):
     s=unescape_node_string(ch)
     n=unicode(s,encoding,"strict")
     return n
+
 
 irc_translate_table=string.maketrans(
 	string.ascii_uppercase+"[]\\~",
@@ -647,7 +648,7 @@ class IRCSession:
 	finally:
 	    self.lock.release()
 
-    def get_user(self,prefix):
+    def get_user(self,prefix,create=1):
 	if "!" in prefix:
 	    nick=prefix.split("!",1)[0]
 	else:
@@ -657,6 +658,8 @@ class IRCSession:
 	nnick=normalize(nick)
 	if self.users.has_key(nnick):
 	    return self.users[nnick]
+	if not create:
+	    return None
 	user=IRCUser(self,prefix)
 	self.register_user(user)
 	return user
@@ -674,6 +677,20 @@ class IRCSession:
 	else:
 	    nick=prefix
 	return normalize(nick)==normalize(self.nick)
+
+    def prefix_to_jid(self,prefix):
+	if channel_re.match(prefix):
+	    node=channel_to_node(prefix,self.default_encoding)
+	    return JID(node,self.network.jid.domain,None)
+	else:
+	    if "!" in prefix:
+		nick,user=prefix.split("!",1)
+	    else:
+		nick=prefix 
+		user=""
+	    node=nick_to_node(nick,self.default_encoding)
+	    resource=unicode(user,self.default_encoding,"replace")
+	    return JID(node,self.network.jid.domain,resource)
 
     def thread_run(self):
 	clean_exit=1
@@ -937,7 +954,22 @@ class IRCSession:
 	if self.ready:
 	    return
 	pass
+
+    def irc_cmd_401(self,prefix,command,params): # ERR_NOSUCHNICK
+	if len(params)>1:
+	    nick,msg=params[:2]
+	    error_text="%s: %s" % (nick,msg)
+	else:
+	    error_text=None
+	self.send_error_message(params[0],"recipient-unavailable",error_text)
  
+    def irc_cmd_404(self,prefix,command,params): # ERR_CANNOTSENDTOCHAN
+	if len(params)>1:
+	    error_text=params[1]
+	else:
+	    error_text=None
+	self.send_error_message(params[0],"forbidden",error_text)
+
     def irc_cmd_QUIT(self,prefix,command,params):
 	user=self.get_user(prefix)
 	user.leave_all()
@@ -956,7 +988,26 @@ class IRCSession:
 	    self.debug("announcing %r presence on channel %r" % (user.nick,c))
 	    channel=user.channels[c]
 	    self.component.send(channel.get_user_presence(user))
-    
+   
+    def send_error_message(self,source,cond,text):
+	self.debug("send_error_message(self,%r,%r,%r)" % (source,cond,text))
+   	user=self.get_user(source)
+	if user:
+	    self.unregister_user(user)
+	if user and user.current_thread:
+	    self.debug("user.current_thread: %r" % (user.current_thread,))
+	    typ,thread,fr=user.current_thread
+	    if not fr:
+		fr=self.prefix_to_jid(source)
+	    m=Message(type="error",error_cond=cond,error_text=text,
+		    to=self.jid,fr=fr,thread=thread)
+	else:
+	    fr=self.prefix_to_jid(source)
+	    self.debug("from: %r" % (fr,))
+	    m=Message(type="error",error_cond=cond,error_text=text,
+		    to=self.jid,fr=fr)
+	self.component.send(m)
+
     def pass_input_to_user(self,prefix,command,params):
 	if command in self.commands_dont_show:
 	    return
@@ -1050,7 +1101,7 @@ class IRCSession:
 	else:
 	    nick=to.node
 	    thread_fr=None
-	nick=node_to_nick(nick,self.default_encoding)
+	nick=node_to_nick(nick,self.default_encoding,self.network)
 	if not self.network.valid_nick(nick):
 	    debug("Bad nick: %r" % (nick,))
 	    return
