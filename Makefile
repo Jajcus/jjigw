@@ -25,7 +25,7 @@ SNAPSHOT=
 PY_DIRS=jjigw
 DOCS=ChangeLog INSTALL README TODO jjigw.xml.example
 
-EXTRA_DIST=Makefile jjigw.py jjigw.dtd spidentd.py catalog.xml
+EXTRA_DIST=jjigw.py jjigw.dtd spidentd.py catalog.xml
 
 .PHONY: all version dist ChangeLog cosmetics
 
@@ -101,6 +101,7 @@ dist: all
 		$(INSTALL_DIR) $$distname/$$d || exit 1; \
 		cp -a $$f $$distname/$$d || exit 1; \
 	done ; \
+	sed -e "s/^SNAPSHOT=.*/SNAPSHOT=$(SNAPSHOT)/" Makefile > $$distname/Makefile ; \
 	mkdir -p dist ; \
 	tar czf dist/$${distname}.tar.gz $$distname && \
 	rm -r $$distname
