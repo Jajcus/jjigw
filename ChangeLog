@@ -1,3 +1,8 @@
+2004-07-21  Jacek Konieczny  <jajcus@bnet.pl>
+
+	* jjigw/ircsession.py:
+	- make copy of login/message/etc request stanzas when putting them to a queue
+
 2004-07-05  Jacek Konieczny  <jajcus@bnet.pl>
 
 	* jjigw/ircsession.py:
