@@ -35,4 +35,4 @@ except JJIGWFatalError,e:
     print "Aborting."
     sys.exit(1)
 
-# vi: sw=4 ts=8 sts=4
+# vi: sts=4 et sw=4

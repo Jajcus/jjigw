@@ -24,100 +24,100 @@ from common import normalize,nick_to_node
 
 class IRCUser:
     def __init__(self,session,nick,user="",host=""):
-	self.sync_delay=0
-	self.session=session
-	if "!" in nick:
-	    nick,tmp=nick.split("!",1)
-	    if "@" in tmp:
-		user,host=tmp.split("@",1)
-	    else:
-		user=tmp
-		host=""
-	self.nick=nick
-	self.user=user
-	self.host=host
-	self.mode={}
-	self.channels={}
-	self.current_thread=None
+        self.sync_delay=0
+        self.session=session
+        if "!" in nick:
+            nick,tmp=nick.split("!",1)
+            if "@" in tmp:
+                user,host=tmp.split("@",1)
+            else:
+                user=tmp
+                host=""
+        self.nick=nick
+        self.user=user
+        self.host=host
+        self.mode={}
+        self.channels={}
+        self.current_thread=None
 
     def descr(self):
-	if self.user and self.host:
-	    return "%s(%s@%s)" % (self.nick,self.user,self.host)
-	else:
-	    return self.nick
+        if self.user and self.host:
+            return "%s(%s@%s)" % (self.nick,self.user,self.host)
+        else:
+            return self.nick
 
     def sync_in_channel(self,channel,status=None):
-	if self.sync_delay>0:
-	    return
-	elif self.sync_delay<0:
-	    self.debug("Warning: %r.sync_delay<0" % (self,))
-	return channel.sync_user(self,status=status)
+        if self.sync_delay>0:
+            return
+        elif self.sync_delay<0:
+            self.debug("Warning: %r.sync_delay<0" % (self,))
+        return channel.sync_user(self,status=status)
 
     def join_channel(self,channel):
-	self.channels[normalize(channel.name)]=channel
-	self.sync_in_channel(channel)
+        self.channels[normalize(channel.name)]=channel
+        self.sync_in_channel(channel)
 
     def leave_channel(self,channel,status=None):
-	try:
-	    del self.channels[normalize(channel.name)]
-	    self.sync_in_channel(channel,status=status)
-	except KeyError:
-	    pass
+        try:
+            del self.channels[normalize(channel.name)]
+            self.sync_in_channel(channel,status=status)
+        except KeyError:
+            pass
 
     def leave_all(self):
-	for channel in self.channels.values():
-	    self.leave_channel(channel)
+        for channel in self.channels.values():
+            self.leave_channel(channel)
 
     def sync_all(self):
-	for channel in self.channels.values():
-	    self.sync_in_channel(channel)
+        for channel in self.channels.values():
+            self.sync_in_channel(channel)
 
     def whoreply(self,params):
-	if params[4]!=self.nick:
-	    return
-	if len(params)!=7:
-	    return
-	channel,user,host,server,nick,flags,rest=params
-	fullname=rest.split(None,1)[1]
-	if channel and channel!="*":
-	    channel=self.session.channels.get(normalize(channel))
-	    if not channel:
-		self.debug("Ignoring WHO reply: %r - unknown channel" % (params,))
-		return
-	else:
-	    channel=None
-	self.sync_delay+=1
-	try:
-	    self.nick=nick
-	    self.host=host
-	    self.user=user
-	    if channel:
-		self.join_channel(channel)
-		if "@" in flags:
-		    channel.set_mode("o",self)
-		elif "+" in flags:
-		    channel.set_mode("v",self)
-		else:
-		    channel.reset_mode("o",self)
-		    channel.reset_mode("v",self)
-	    if "G" in flags:
-		self.mode["a"]=1
-	    else:
-		self.mode["a"]=0
-	finally:
-	    self.sync_delay-=1
-	if channel:
-	    channel.sync_user(self)
+        if params[4]!=self.nick:
+            return
+        if len(params)!=7:
+            return
+        channel,user,host,server,nick,flags,rest=params
+        fullname=rest.split(None,1)[1]
+        if channel and channel!="*":
+            channel=self.session.channels.get(normalize(channel))
+            if not channel:
+                self.debug("Ignoring WHO reply: %r - unknown channel" % (params,))
+                return
+        else:
+            channel=None
+        self.sync_delay+=1
+        try:
+            self.nick=nick
+            self.host=host
+            self.user=user
+            if channel:
+                self.join_channel(channel)
+                if "@" in flags:
+                    channel.set_mode("o",self)
+                elif "+" in flags:
+                    channel.set_mode("v",self)
+                else:
+                    channel.reset_mode("o",self)
+                    channel.reset_mode("v",self)
+            if "G" in flags:
+                self.mode["a"]=1
+            else:
+                self.mode["a"]=0
+        finally:
+            self.sync_delay-=1
+        if channel:
+            channel.sync_user(self)
 
     def jid(self):
-	return JID(nick_to_node(self.nick,self.session.default_encoding),
-		self.session.network.jid.domain,
-		unicode(self.user+'@'+self.host,self.session.default_encoding,"replace"))
+        return JID(nick_to_node(self.nick,self.session.default_encoding),
+                self.session.network.jid.domain,
+                unicode(self.user+'@'+self.host,self.session.default_encoding,"replace"))
 
     def __repr__(self):
-	return "<IRCUser %r>" % (self.nick,)
+        return "<IRCUser %r>" % (self.nick,)
 
     def debug(self,msg):
-	return self.session.debug(msg)
+        return self.session.debug(msg)
 
-# vi: sw=4 ts=8 sts=4
+# vi: sts=4 et sw=4

@@ -23,68 +23,68 @@ import socket
 
 class SPIdentD:
     def __init__(self,component,config):
-	self.socket_path=config.socket
-	self.component=component
-	self.socket=None
-	self.queue=Queue.Queue(100)
-	self.thread=threading.Thread(target=self.run_thread)
-	self.thread.setDaemon(1)
-	self.thread.start()
+        self.socket_path=config.socket
+        self.component=component
+        self.socket=None
+        self.queue=Queue.Queue(100)
+        self.thread=threading.Thread(target=self.run_thread)
+        self.thread.setDaemon(1)
+        self.thread.start()
 
     def run_thread(self):
-	while not self.component.shutdown:
-	    self.socket=socket.socket(socket.AF_UNIX)
-	    try:
-		try:
-		    self.socket.connect(self.socket_path)
-		    self.loop()
-		except socket.error:
-		    self.print_exception()
-		    pass
-	    finally:
-		try:
-		    self.socket.close()
-		except:
-		    pass
-		self.socket=None
-		if not self.component.shutdown:
-		    print >>sys.stderr,"Waiting before spidentd connection restart..."
-		    time.sleep(10)
+        while not self.component.shutdown:
+            self.socket=socket.socket(socket.AF_UNIX)
+            try:
+                try:
+                    self.socket.connect(self.socket_path)
+                    self.loop()
+                except socket.error:
+                    self.print_exception()
+                    pass
+            finally:
+                try:
+                    self.socket.close()
+                except:
+                    pass
+                self.socket=None
+                if not self.component.shutdown:
+                    print >>sys.stderr,"Waiting before spidentd connection restart..."
+                    time.sleep(10)
 
     def loop(self):
-	while not self.component.shutdown:
-	    try:
-		item=self.queue.get(1,1)
-	    except Queue.Empty:
-		continue
-	    while item:
-		try:
-		    if item[0]=="add":
-			ci=item[1]
-			self.socket.send("add %s:%i %s:%i %s\n" % (
-			    ci.localip,ci.localport,ci.remoteip,ci.remoteport,ci.user))
-		    elif item[0]=="remove":
-			ci=item[1]
-			self.socket.send("remove %s:%i %s:%i\n" % (
-			    ci.localip,ci.localport,ci.remoteip,ci.remoteport))
-		except socket.error:
-		    self.queue.put(item)
-		    raise
-		try:
-		    item=self.queue.get(0)
-		except Queue.Empty:
-		    break
+        while not self.component.shutdown:
+            try:
+                item=self.queue.get(1,1)
+            except Queue.Empty:
+                continue
+            while item:
+                try:
+                    if item[0]=="add":
+                        ci=item[1]
+                        self.socket.send("add %s:%i %s:%i %s\n" % (
+                            ci.localip,ci.localport,ci.remoteip,ci.remoteport,ci.user))
+                    elif item[0]=="remove":
+                        ci=item[1]
+                        self.socket.send("remove %s:%i %s:%i\n" % (
+                            ci.localip,ci.localport,ci.remoteip,ci.remoteport))
+                except socket.error:
+                    self.queue.put(item)
+                    raise
+                try:
+                    item=self.queue.get(0)
+                except Queue.Empty:
+                    break
 
     def register_connection(self,conninfo):
-	self.queue.put(("add",conninfo))
+        self.queue.put(("add",conninfo))
 
     def unregister_connection(self,conninfo):
-	self.queue.put(("remove",conninfo))
+        self.queue.put(("remove",conninfo))
 
     def debug(self,msg):
-	self.component.debug(msg)
-    
-    def print_exception(self):
-	self.component.print_exception()
+        self.component.debug(msg)
 
-# vi: sw=4 ts=8 sts=4
+    def print_exception(self):
+        self.component.print_exception()
+
+# vi: sts=4 et sw=4

@@ -62,7 +62,7 @@ def node_to_channel(n,encoding):
     s=n.encode(encoding,"strict")
     s=escape_node_string(s)
     if not channel_re.match(s):
-	raise ValueError,"Bad channel name: %r" % (s,)
+        raise ValueError,"Bad channel name: %r" % (s,)
     return s
 
 def channel_to_node(ch,encoding):
@@ -74,7 +74,7 @@ def node_to_nick(n,encoding,network):
     s=n.encode(encoding,"strict")
     s=escape_node_string(s)
     if not network.valid_nick(s):
-	raise ValueError,"Bad nick name: %r" % (s,)
+        raise ValueError,"Bad nick name: %r" % (s,)
     return s
 
 def nick_to_node(ch,encoding):
@@ -83,17 +83,17 @@ def nick_to_node(ch,encoding):
     return n
 
 irc_translate_table=string.maketrans(
-	string.ascii_uppercase+"[]\\~",
-	string.ascii_lowercase+"{}|^")
+        string.ascii_uppercase+"[]\\~",
+        string.ascii_lowercase+"{}|^")
 
 def normalize(s):
     return s.translate(irc_translate_table)
 
 class ConnectionInfo:
     def __init__(self,socket,user):
-	self.localip,self.localport=socket.getsockname()
-	self.remoteip,self.remoteport=socket.getpeername()
-	self.user=user
+        self.localip,self.localport=socket.getsockname()
+        self.remoteip,self.remoteport=socket.getpeername()
+        self.user=user
 
 
-# vi: sw=4 ts=8 sts=4
+# vi: sts=4 et sw=4
