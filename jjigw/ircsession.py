@@ -31,7 +31,7 @@ from pyxmpp.jabber.muc import MucPresence
 from ircuser import IRCUser
 from channel import Channel
 from common import ConnectionInfo
-from common import node_to_channel,normalize
+from common import node_to_channel,normalize,node_to_nick
 from common import remove_evil_characters,strip_colors
 from common import channel_re,numeric_re
 
