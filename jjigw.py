@@ -49,6 +49,58 @@ def remove_evil_characters(s):
     return evil_characters_re.sub(" ",s)
 
 channel_re=re.compile(r"^[&#+!][^\000 \007 ,:\r\n]{1,49}$")
+nick_re=re.compile(r"^[a-zA-Z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}][a-zA-Z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}0-9-]{0,8}$")
+
+def escape_node_string(s):
+    s=s.replace(",quot,",'"')
+    s=s.replace(",amp,","&")
+    s=s.replace(",apos,","'")
+    s=s.replace(",slash,","/")
+    s=s.replace(",lt,","<")
+    s=s.replace(",gt,",">")
+    s=s.replace(",at,","@")
+    return s
+
+def unescape_node_string(s):
+    s=s.replace('"',",quot,")
+    s=s.replace("&",",amp,")
+    s=s.replace("'",",apos,")
+    s=s.replace("/",",slash,")
+    s=s.replace("<",",lt,")
+    s=s.replace(">",",gt,")
+    s=s.replace("@",",at,")
+    return s
+
+def node_to_channel(n,encoding):
+    s=n.encode(encoding,"strict")
+    s=escape_node_string(s)
+    if not channel_re.match(s):
+	raise ValueError,"Bad channel name: %r" % (s,)
+    return s
+
+def channel_to_node(ch,encoding):
+    s=unescape_node_string(ch)
+    n=unicode(s,encoding,"strict")
+    return n
+
+def node_to_nick(n,encoding):
+    s=n.encode(encoding,"strict")
+    s=escape_node_string(s)
+    if not nick_re.match(s):
+	raise ValueError,"Bad channel name: %r" % (s,)
+    return s
+
+def nick_to_node(ch,encoding):
+    s=unescape_node_string(ch)
+    n=unicode(s,encoding,"strict")
+    return n
+
+irc_translate_table=string.maketrans(
+	string.ascii_uppercase+"[]\\~",
+	string.ascii_lowercase+"{}|^")
+
+def normalize(s):
+    return s.translate(irc_translate_table)
 
 class IRCUser:
     def __init__(self,session,nick,user="",host=""):
@@ -67,11 +119,11 @@ class IRCUser:
 	self.channels={}
 
     def join_channel(self,channel):
-	self.channels[channel.name]=channel
+	self.channels[normalize(channel.name)]=channel
 
     def leave_channel(self,channel):
 	try:
-	    del self.channels[channel.name]
+	    del self.channels[normalize(channel.name)]
 	except KeyError:
 	    pass
 
@@ -84,7 +136,7 @@ class IRCUser:
 	fullname=rest.split(None,1)[1]
 	self.debug("Channel: %r" % (channel,))
 	if channel!="*":
-	    channel=self.session.channels.get(channel)
+	    channel=self.session.channels.get(normalize(channel))
 	    if not channel:
 		self.debug("Ignoring WHO reply: %r - unknown channel" % (params,))
 		return
@@ -161,7 +213,8 @@ class Channel:
 	return self.nick_to_jid(prefix)
 
     def nick_to_jid(self,nick):
-	return JID(self.room_jid.node,self.room_jid.domain,unicode(nick,self.encoding,"replace"))
+	return JID(self.room_jid.node,self.room_jid.domain,
+		unicode(nick,self.encoding,"replace"))
 
     def get_user_presence(self,user):
 	if user in self.users:
@@ -196,7 +249,9 @@ class Channel:
 	    pass
 
     def irc_cmd_JOIN(self,prefix,command,params):
-	if prefix==self.session.nick or prefix.startswith(self.session.nick+"!"):
+	nprefix=normalize(prefix)
+	nnick=normalize(self.session.nick)
+	if nprefix==nnick or nprefix.startswith(nnick+"!")):
 	    if self.state=="join":
 		self.debug("Channel %r joined!" % (self.name,))
 		p=Presence(type="available",fr=self.stanza.get_to(),
@@ -250,7 +305,6 @@ class Channel:
     def debug(self,msg):
 	return self.session.debug(msg)
 
-nick_re=re.compile(r"^[a-zA-Z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}][a-zA-Z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}0-9-]{0,8}$")
 
 class IRCSession:
     commands_dont_show=[]
@@ -283,24 +337,25 @@ class IRCSession:
     def register_user(self,user):
 	self.lock.acquire()
 	try:
-	    self.users[user.nick]=user
+	    self.users[normalize(user.nick)]=user
 	finally:
 	    self.lock.release()
 
     def unregister_user(self,user):
 	self.lock.acquire()
 	try:
-	    if self.users.get(user.nick)==user:
-		del self.users[user.nick]
+	    nnick=normalize(user.nick)
+	    if self.users.get(nnick)==user:
+		del self.users[nnick]
 	finally:
 	    self.lock.release()
 
     def rename_user(self,user,new_nick):
 	self.lock.acquire()
 	try:
-	    self.users[new_nick]=user
+	    self.users[normalize(new_nick)]=user
 	    try:
-		del self.users[user.nick]
+		del self.users[normalize(user.nick)]
 	    except KeyError:
 		pass
 	    user.nick=new_nick
@@ -312,15 +367,16 @@ class IRCSession:
 	    nick=prefix.split("!",1)[0]
 	else:
 	    nick=prefix
-	if self.users.has_key(nick):
-	    return self.users[nick]
+	nnick=normalize(nick)
+	if self.users.has_key(nnick):
+	    return self.users[nnick]
 	user=IRCUser(self,prefix)
 	self.register_user(user)
 	return user
 
     def check_nick(self,nick):
-	nick=nick.encode(self.default_encoding,"strict")
-	if nick==self.nick:
+	nick=nick.encode(self.default_encoding)
+	if normalize(nick)==normalize(self.nick):
 	    return 1
 	else:
 	    return 0
@@ -475,9 +531,12 @@ class IRCSession:
     def pass_input_to_user(self,prefix,command,params):
 	if command in self.commands_dont_show:
 	    return
-	if prefix==self.nick or prefix and prefix.startswith(self.nick+"!"):
+	nprefix=normalize(prefix)
+	nnick=normalize(self.nick)
+	nserver=normalize(self.server)
+	if nprefix==nnick or prefix and nprefix.startswith(nnick+"!"):
 	    return
-	if prefix==self.server and len(params)==2 and params[0]==self.nick:
+	if nprefix==nserver and len(params)==2 and params[0]==self.nick:
 	    body=u"(!) %s" % (unicode(params[1],self.default_encoding,"replace"),)
 	elif command in ("004","005","252","253","254"):
 	    p=string.join(params[1:]," ")
@@ -490,9 +549,10 @@ class IRCSession:
 	m=Message(to=self.jid,fr=fr,body=body)
 	self.component.send(m)
 
-    def join(self,channel,stanza):
-	channel=channel.encode(self.default_encoding)
-	if self.channels.has_key(channel):
+    def join(self,stanza):
+	to=stanza.get_to()
+	channel=node_to_channel(to,self.default_encoding)
+	if self.channels.has_key(normalize(channel)):
 	    return
 	self.cond.acquire()
 	try:
@@ -505,13 +565,13 @@ class IRCSession:
 	    return
 	channel=Channel(self,channel)
 	channel.join(stanza)
-	self.channels[channel.name]=channel
+	self.channels[normalize(channel.name)]=channel
 
     def message_to_channel(self,stanza):
 	if not self.ready:
 	    return
 	channel=stanza.get_to().node
-	channel=channel.encode(self.default_encoding)
+	channel=node_to_channel(channel,self.default_encoding)
 	if not channel_re.match(channel):
 	    debug("Bad channel name: %r" % (channel,))
 	    return
@@ -520,7 +580,7 @@ class IRCSession:
 	if body.startswith("/me "):
 	    body="\001ACTION "+body[4:]+"\001"
 	self.send("PRIVMSG %s :%s" % (channel,body))
-	channel=self.channels.get(channel)
+	channel=self.channels.get(normalize(channel))
 	if channel:
 	    channel.irc_cmd_PRIVMSG(self.nick,"PRIVMSG",[channel.name,body])
 
@@ -665,7 +725,7 @@ class Component(pyxmpp.jabberd.Component):
 	    sess.used_for.append(to)
 	    self.irc_sessions[fr.as_unicode()]=sess
 	if to.node:
-	    sess.join(to.node,stanza)
+	    sess.join(stanza)
 	else:
 	    p=Presence(
 		to=stanza.get_from(),
