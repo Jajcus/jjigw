@@ -23,11 +23,11 @@ VERSION=0.2.1
 SNAPSHOT=
 
 PY_DIRS=jjigw
-DOCS=INSTALL README TODO jjigw.xml.example
+DOCS=ChangeLog INSTALL README TODO jjigw.xml.example
 
 EXTRA_DIST=Makefile jjigw.py jjigw.dtd spidentd.py catalog.xml
 
-.PHONY: all version dist
+.PHONY: all version dist ChangeLog cosmetics
 
 all: version jjigw.py.inst catalog.xml.inst
 
@@ -46,6 +46,12 @@ catalog.xml.inst: catalog.xml
 		"s#rewritePrefix=\"./\"#rewritePrefix=\"file:///$(pkg_datadir)/\"#" \
 		catalog.xml > catalog.xml.inst
 
+ChangeLog: 
+	TZ=UTC svn log -v --xml | svn2log.py -p '/(branches/[^/]+|trunk)' -x ChangeLog -u aux/users
+
+cosmetics:
+	./aux/cosmetics.sh
+	
 clean:
 	-rm -f jjigw.py.inst catalog.xml.inst
 	-for d in $(PY_DIRS) ; do \
