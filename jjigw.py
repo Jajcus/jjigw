@@ -120,12 +120,22 @@ class IRCUser:
 
     def join_channel(self,channel):
 	self.channels[normalize(channel.name)]=channel
+	channel.sync_user(self)
 
     def leave_channel(self,channel):
 	try:
 	    del self.channels[normalize(channel.name)]
+	    channel.sync_user(self)
 	except KeyError:
 	    pass
+
+    def leave_all(self):
+	for channel in self.channels.values():
+	    self.leave_channel(channel)
+
+    def sync_all(self):
+	for channel in self.channels.values():
+	    channel.sync_user(self)
 
     def whoreply(self,params):
 	if params[5]!=self.nick:
@@ -135,20 +145,19 @@ class IRCUser:
 	target,channel,user,host,server,nick,flags,rest=params
 	fullname=rest.split(None,1)[1]
 	self.debug("Channel: %r" % (channel,))
-	if channel!="*":
+	if channel and channel!="*":
 	    channel=self.session.channels.get(normalize(channel))
 	    if not channel:
 		self.debug("Ignoring WHO reply: %r - unknown channel" % (params,))
 		return
+	else:
+	    channel=None
 	self.nick=nick
 	self.host=host
 	self.user=user
-	if channel!="*":
+	if channel:
 	    self.debug("Channel: %r" % (channel,))
 	    self.join_channel(channel)
-	    if self not in channel.users:
-		self.debug("Adding user %r to channel %r" % (self.nick,channel.name))
-		channel.users.append(self)
 	    if "@" in flags:
 		channel.set_mode("o",self)
 	    elif "+" in flags:
@@ -160,6 +169,8 @@ class IRCUser:
 	    self.mode["a"]=1
 	else:
 	    self.mode["a"]=0
+	if channel:
+	    channel.sync_user(self)
 	
     def debug(self,msg):
 	return self.session.debug(msg)
@@ -179,6 +190,26 @@ class Channel:
 	self.encoding=session.default_encoding
 	self.modes={}
 	self.users=[]
+	self.muc=0
+
+    def sync_user(self,user):
+	if user.channels.has_key(normalize(self.name)):
+	    if user not in self.users:
+		self.users.append(user)
+	else:
+	    if user in self.users:
+		self.users.remove(user)
+		self.send_notice_message(u"%s has quit" 
+			% (unicode(user.nick,self.encoding,"replace"),))
+	if self.state:
+	    p=self.get_user_presence(user)
+	    self.session.component.send(p)
+
+    def send_notice_message(self,msg):
+	if not self.state or self.muc:
+	    return
+	m=Message(fr=self.room_jid.bare(),to=self.session.jid,type="groupchat",body=msg)
+	self.session.component.send(m)
 
     def join(self,stanza):
 	if self.state:
@@ -206,6 +237,9 @@ class Channel:
 	    self.stanza=None
 	p=Presence(type="unavailable",fr=stanza.get_to(),to=stanza.get_from(),status=status)
 	self.session.component.send(p)
+	for u in self.users:
+	    u.leave_room(self)
+	self.state=None
 
     def prefix_to_jid(self,prefix):
 	if "!" in prefix:
@@ -217,11 +251,24 @@ class Channel:
 		unicode(nick,self.encoding,"replace"))
 
     def get_user_presence(self,user):
-	if user in self.users:
+	if self.state and user in self.users:
 	    p=Presence(fr=self.nick_to_jid(user.nick),to=self.session.jid)
 	else:
 	    p=Presence(type="unavailable",fr=self.nick_to_jid(user.nick),to=self.session.jid)
 	return p
+
+    def nick_changed(self,oldnick,user):
+	p_aval=self.get_user_presence(user)
+	p_unaval=p_aval.copy()
+	p_unaval.set_type("unavailable")
+	p_unaval.set_show(None)
+	p_unaval.set_status(None)
+	p_unaval.set_from(self.nick_to_jid(oldnick))
+	self.session.component.send(p_unaval)
+	self.session.component.send(p_aval)
+	self.send_notice_message(u"%s is now known as %s" 
+		% (unicode(oldnick,self.encoding,"replace"),
+		    unicode(user.nick,self.encoding,"replace")))
 	
     def set_mode(self,mode,arg):
 	if mode in self.toggle_modes:
@@ -257,16 +304,15 @@ class Channel:
 		p=Presence(type="available",fr=self.stanza.get_to(),
 			to=self.stanza.get_from())
 		self.session.component.send(p)
-		self.state="sync"
+		self.state="joined"
 		self.stanza=None
 		self.session.send("WHO %s" % (self.name,))
 	else:
 	    user=self.session.get_user(prefix)
-	    if user not in self.users:
-		self.users.append(user)
 	    user.join_channel(self)
+	    self.send_notice_message(u"%s has joined" 
+		    % (unicode(user.nick,self.encoding,"replace"),))
 	    self.session.send("WHO %s" % (user.nick,))
-	    self.session.component.send(self.get_user_presence(user))
 
     def irc_cmd_PART(self,prefix,command,params):
         user=self.session.get_user(prefix)
@@ -275,7 +321,8 @@ class Channel:
 	except ValueError:
 	    pass
 	user.leave_channel(self)
-	self.session.component.send(self.get_user_presence(user))
+	self.send_notice_message(u"%s has left" 
+		% (unicode(user.nick,self.encoding,"replace"),))
 
     def irc_cmd_PRIVMSG(self,prefix,command,params):
 	self.debug("Message on channel %r" % (self.name,))
@@ -513,6 +560,21 @@ class IRCSession:
 
     def irc_cmd_PING(self,prefix,command,params):
 	self.send("PONG %s" % (params[0],))
+
+    def irc_cmd_NICK(self,prefix,command,params):
+	if len(params)<1:
+	    return
+	user=self.get_user(prefix)
+	if params[0]!=user.nick:
+	    oldnick=user.nick
+	    self.rename_user(user,params[0])
+	    for ch in user.channels.values():
+		ch.nick_changed(oldnick,user)
+
+    def irc_cmd_QUIT(self,prefix,command,params):
+	user=self.get_user(prefix)
+	user.leave_all()
+	self.unregister_user(user)
 
     def irc_cmd_352(self,prefix,command,params):
 	self.debug("WHO reply received")
