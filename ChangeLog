@@ -1,3 +1,8 @@
+2004-06-26  Jacek Konieczny  <jajcus@bnet.pl>
+
+	* jjigw/ircsession.py:
+	- handle EOF gracefully instead of eating 100% of CPU time
+
 2004-06-25  Jacek Konieczny  <jajcus@bnet.pl>
 
 	* jjigw/channel.py, jjigw/ircsession.py, jjigw/ircuser.py:
