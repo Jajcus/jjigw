@@ -164,12 +164,15 @@ class IRCSession:
         self.lock.acquire()
         try:
             if not self.exited and self.socket:
-                if clean_exit and self.component.shutdown:
-                    self._send("QUIT :JJIGW shutdown")
-                elif clean_exit and self.exit:
-                    self._send("QUIT :%s" % (self.exit.encode(self.default_encoding,"replace")))
-                else:
-                    self._send("QUIT :Internal JJIGW error")
+                try:
+                    if clean_exit and self.component.shutdown:
+                        self._send("QUIT :JJIGW shutdown")
+                    elif clean_exit and self.exit:
+                        self._send("QUIT :%s" % (self.exit.encode(self.default_encoding,"replace")))
+                    else:
+                        self._send("QUIT :Internal JJIGW error")
+                except socket.error:
+                    pass
                 self.exited=1
             if self.socket:
                 try:
