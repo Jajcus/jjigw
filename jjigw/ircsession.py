@@ -535,7 +535,7 @@ class IRCSession:
         self.cond.acquire()
         try:
             if not self.ready:
-                self.join_requests.append(stanza)
+                self.join_requests.append(stanza.copy())
                 return
         finally:
             self.cond.release()
@@ -580,7 +580,7 @@ class IRCSession:
         self.cond.acquire()
         try:
             if not self.ready:
-                self.login_requests.append(stanza)
+                self.login_requests.append(stanza.copy())
                 return
         finally:
             self.cond.release()
@@ -641,7 +641,7 @@ class IRCSession:
         self.cond.acquire()
         try:
             if not self.ready:
-                self.messages_to_channel.append(stanza)
+                self.messages_to_channel.append(stanza.copy())
                 return
         finally:
             self.cond.release()
@@ -670,7 +670,7 @@ class IRCSession:
         self.cond.acquire()
         try:
             if not self.ready:
-                self.messages_to_user.append(stanza)
+                self.messages_to_user.append(stanza.copy())
                 return
         finally:
             self.cond.release()
