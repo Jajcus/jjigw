@@ -1,6 +1,9 @@
 2004-02-14  Jacek Konieczny  <jajcus@bnet.pl>
 
 	* jjigw.py:
+	- show channel mode changes
+
+	* jjigw.py:
 	- ERR_CANNOTSENDTOCHAN and ERR_NOSUCHNICK handling
 
 2004-02-12  Jacek Konieczny  <jajcus@bnet.pl>
