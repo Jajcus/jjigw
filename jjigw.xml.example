@@ -8,7 +8,7 @@
 	<secret>topsecret</secret>
 </connect>
 
-<network jid="ircnet.localhost">
+<network jid="ircnet.localhost" encoding="iso-8859-2">
 	<server>warszawa.irc.pl</server>
 	<server>lublin.irc.pl</server>
 	<server>poznan.irc.pl</server>
