@@ -1,3 +1,8 @@
+2004-07-23  Jacek Konieczny  <jajcus@bnet.pl>
+
+	* jjigw/component.py:
+	- missing Message import
+
 2004-07-21  Jacek Konieczny  <jajcus@bnet.pl>
 
 	* Makefile:
