@@ -7,7 +7,7 @@ import re
 import select
 import socket
 import user
-import sha
+import md5
 import string
 import random
 import signal
@@ -769,7 +769,7 @@ class IRCSession:
 	    self.socket=None
 	    return
 	self._send("NICK %s" % (self.nick,))
-	user=sha.new(self.jid.bare().as_string()).hexdigest()[:64]
+	user=md5.new(self.jid.bare().as_string()).hexdigest()[:64]
 	self.conninfo=ConnectionInfo(self.socket,user)
 	self.component.register_connection(self.conninfo)
 	self._send("USER %s 0 * :JJIGW User %s" % (user,user))
