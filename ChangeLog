@@ -1,3 +1,11 @@
+2004-02-11  Jacek Konieczny  <jajcus@bnet.pl>
+
+	* spidentd.py:
+	- programming seems to work :)
+
+	* spidentd.py:
+	- simple ident daemon (to be programable by jjigw soon)
+
 2004-02-08  Jacek Konieczny  <jajcus@bnet.pl>
 
 	* jjigw.py:
