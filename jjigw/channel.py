@@ -70,7 +70,7 @@ class Channel:
     def send_notice_message(self,msg,not_in_muc=1):
         if not self.state or (self.muc and not_in_muc):
             return
-        m=Message(fr=self.room_jid.bare(),to=self.session.jid,type="groupchat",body=msg)
+        m=Message(from_jid=self.room_jid.bare(),to_jid=self.session.jid,stanza_type="groupchat",body=msg)
         self.session.component.send(m)
 
     def join(self,stanza):
@@ -98,7 +98,7 @@ class Channel:
                 self.session.send("PART %s :%s" % (self.name,
                         status.encode(self.encoding,"replace")))
             self.state=None
-        p=MucPresence(type="unavailable",fr=stanza.get_to(),to=stanza.get_from(),status=status)
+        p=MucPresence(stanza_type="unavailable",from_jid=stanza.get_to(),to_jid=stanza.get_from(),status=status)
         self.session.component.send(p)
         for u in self.users:
             u.leave_channel(self)
@@ -115,9 +115,9 @@ class Channel:
 
     def get_user_presence(self,user,nick=None,actor=None,reason=None,status=None):
         if self.state and user in self.users:
-            p=MucPresence(fr=self.nick_to_jid(user.nick),to=self.session.jid)
+            p=MucPresence(from_jid=self.nick_to_jid(user.nick),to_jid=self.session.jid)
         else:
-            p=MucPresence(type="unavailable",fr=self.nick_to_jid(user.nick),to=self.session.jid)
+            p=MucPresence(stanza_type="unavailable",from_jid=self.nick_to_jid(user.nick),to_jid=self.session.jid)
         if self.muc:
             if user in self.modes.get("o",[]):
                 aff="admin"
@@ -221,25 +221,25 @@ class Channel:
         if r:
             m=r.stanza.make_error_response(condition)
         else:
-            m=Message(fr=self.room_jid.bare(),to=self.session.jid,
-                    type="error", error_cond=condition)
+            m=Message(from_jid=self.room_jid.bare(),to_jid=self.session.jid,
+                    stanza_type="error", error_cond=condition)
         self.session.component.send(m)
 
     def irc_cmd_331(self,prefix,command,params): # RPL_NOTOPIC
-        m=Message(fr=self.room_jid.bare(),to=self.session.jid, type="groupchat", subject=u"")
+        m=Message(from_jid=self.room_jid.bare(),to_jid=self.session.jid, stanza_type="groupchat", subject=u"")
         self.session.component.send(m)
 
     def irc_cmd_332(self,prefix,command,params): # RPL_TOPIC
         topic=remove_evil_characters(params[1])
-        m=Message(fr=self.room_jid.bare(),to=self.session.jid,
-                type="groupchat", subject=unicode(topic,self.encoding,"replace"))
+        m=Message(from_jid=self.room_jid.bare(),to_jid=self.session.jid,
+                stanza_type="groupchat", subject=unicode(topic,self.encoding,"replace"))
         self.session.component.send(m)
 
     def irc_cmd_TOPIC(self,prefix,command,params):
         self.requests.get("TOPIC")
         topic=remove_evil_characters(params[1])
-        m=Message(fr=self.prefix_to_jid(prefix),to=self.session.jid,
-                type="groupchat", subject=unicode(topic,self.encoding,"replace"))
+        m=Message(from_jid=self.prefix_to_jid(prefix),to_jid=self.session.jid,
+                stanza_type="groupchat", subject=unicode(topic,self.encoding,"replace"))
         self.session.component.send(m)
 
     def irc_cmd_MODE(self,prefix,command,params):
@@ -394,7 +394,7 @@ class Channel:
         if body[0]=="\001" and body[-1]=="\001":
             self.CTCP(prefix,body[1:-1])
         else:
-            m=Message(type="groupchat",fr=self.prefix_to_jid(prefix),to=self.session.jid,
+            m=Message(stanza_type="groupchat",from_jid=self.prefix_to_jid(prefix),to_jid=self.session.jid,
                     body=remove_evil_characters(strip_colors(body)))
             self.session.component.send(m)
 
@@ -404,7 +404,7 @@ class Channel:
         else:
             arg=None
         if command=="ACTION":
-            m=Message(type="groupchat",fr=self.prefix_to_jid(prefix),to=self.session.jid,
+            m=Message(stanza_type="groupchat",from_jid=self.prefix_to_jid(prefix),to_jid=self.session.jid,
                     body="/me "+remove_evil_characters(strip_colors(arg)))
             self.session.component.send(m)
         else:

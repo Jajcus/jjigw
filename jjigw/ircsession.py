@@ -186,7 +186,7 @@ class IRCSession:
         finally:
             self.lock.release()
         for j in self.used_for:
-            p=Presence(fr=j,to=self.jid,type="unavailable")
+            p=Presence(from_jid=j,to_jid=self.jid,stanza_type="unavailable")
             self.component.send(p)
         self.used_for=[]
 
@@ -380,7 +380,7 @@ class IRCSession:
         if not fr:
             fr=user.jid()
         body=unicode(params[1],self.default_encoding,"replace")
-        m=Message(type=typ,fr=fr,to=self.jid,body=remove_evil_characters(strip_colors(body)))
+        m=Message(stanza_type=typ,from_jid=fr,to_jid=self.jid,body=remove_evil_characters(strip_colors(body)))
         self.component.send(m)
 
     def login_error(self,join_condition,message_condition):
@@ -492,12 +492,12 @@ class IRCSession:
             typ,thread,fr=user.current_thread
             if not fr:
                 fr=self.prefix_to_jid(source)
-            m=Message(type="error",error_cond=cond,error_text=text,
-                    to=self.jid,fr=fr,thread=thread)
+            m=Message(stanza_type="error",error_cond=cond,error_text=text,
+                    to_jid=self.jid,from_jid=fr,thread=thread)
         else:
             fr=self.prefix_to_jid(source)
-            m=Message(type="error",error_cond=cond,error_text=text,
-                    to=self.jid,fr=fr)
+            m=Message(stanza_type="error",error_cond=cond,error_text=text,
+                    to_jid=self.jid,from_jid=fr)
         self.component.send(m)
 
     def pass_input_to_raw_channel(self,prefix,command,params):
@@ -515,7 +515,7 @@ class IRCSession:
         else:
             prefix=None
         fr=JID('#',self.network.jid.domain,prefix)
-        m=Message(to=self.jid,fr=fr,body=body,type="groupchat")
+        m=Message(to_jid=self.jid,from_jid=fr,body=body,stanza_type="groupchat")
         self.component.send(m)
 
     def pass_output_to_raw_channel(self,s):
@@ -525,12 +525,12 @@ class IRCSession:
         body=unicode(body,self.default_encoding,"replace")
         nick=unicode(self.nick,self.default_encoding,"replace")
         fr=JID('#',self.network.jid.domain,nick)
-        m=Message(to=self.jid,fr=fr,body=body,type="groupchat")
+        m=Message(to_jid=self.jid,from_jid=fr,body=body,stanza_type="groupchat")
         self.component.send(m)
 
     def pass_message_to_raw_channel(self,msg):
         fr=JID('#',self.network.jid.domain,None)
-        m=Message(to=self.jid,fr=fr,body=msg,type="groupchat")
+        m=Message(to_jid=self.jid,from_jid=fr,body=msg,stanza_type="groupchat")
         self.component.send(m)
 
     def join(self,stanza):
@@ -563,7 +563,7 @@ class IRCSession:
         to=stanza.get_to()
         if to not in self.used_for:
             self.used_for.append(to)
-        p=Presence(fr=to,to=stanza.get_from())
+        p=Presence(from_jid=to,to_jid=stanza.get_from())
         self.component.send(p)
 
     def leave(self,stanza):
@@ -593,7 +593,7 @@ class IRCSession:
         if to not in self.used_for:
             self.used_for.append(to)
         fr=stanza.get_from()
-        p=Presence(to=fr,fr=to,status=stanza.get_status(),show=stanza.get_show())
+        p=Presence(to_jid=fr,from_jid=to,status=stanza.get_status(),show=stanza.get_show())
         self.component.send(p)
 
     def logout(self,stanza,send_response=1):
@@ -607,9 +607,9 @@ class IRCSession:
             pass
         if send_response:
             p=Presence(
-                type="unavailable",
-                to=stanza.get_from(),
-                fr=stanza.get_to()
+                stanza_type="unavailable",
+                to_jid=stanza.get_from(),
+                from_jid=stanza.get_to()
                 );
             self.component.send(p)
         if not self.used_for:

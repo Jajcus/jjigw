@@ -207,12 +207,12 @@ class Component(pyxmpp.jabberd.Component):
             return 1
         remove=iq.xpath_eval("r:query/r:remove",{"r":"jabber:iq:register"})
         if remove:
-            m=Message(fr=iq.get_to(),to=iq.get_from(),type="chat",
+            m=Message(from_jid=iq.get_to(),to_jid=iq.get_from(),stanza_type="chat",
                     body=u"Unregistered")
             self.stream.send(m)
-            p=Presence(fr=iq.get_to(),to=iq.get_from(),type="unsubscribe")
+            p=Presence(from_jid=iq.get_to(),to_jid=iq.get_from(),stanza_type="unsubscribe")
             self.stream.send(p)
-            p=Presence(fr=iq.get_to(),to=iq.get_from(),type="unsubscribed")
+            p=Presence(from_jid=iq.get_to(),to_jid=iq.get_from(),stanza_type="unsubscribed")
             self.stream.send(p)
             return 1
         username=iq.xpath_eval("r:query/r:username",{"r":"jabber:iq:register"})
@@ -225,11 +225,11 @@ class Component(pyxmpp.jabberd.Component):
             password=password[0].getContent()
         else:
             password=u""
-        m=Message(fr=iq.get_to(),to=iq.get_from(),type="chat",
+        m=Message(from_jid=iq.get_to(),to_jid=iq.get_from(),stanza_type="chat",
                 body=u"Registered with username '%s' and password '%s'"
                 " (both ignored)" % (username,password))
         self.stream.send(m)
-        p=Presence(fr=iq.get_to(),to=iq.get_from(),type="subscribe")
+        p=Presence(from_jid=iq.get_to(),to_jid=iq.get_from(),stanza_type="subscribe")
         self.stream.send(p)
         iq=iq.make_result_response()
         self.stream.send(iq)
@@ -244,9 +244,9 @@ class Component(pyxmpp.jabberd.Component):
         sess=self.get_session(fr,to)
         if not to.node:
             if sess:
-                m=Message(to=fr,fr=to,body="Connected to: %s" % (sess.server,),type=typ)
+                m=Message(to_jid=fr,from_jid=to,body="Connected to: %s" % (sess.server,),stanza_type=typ)
             else:
-                m=Message(to=fr,fr=to,body="Not connected",type=typ)
+                m=Message(to_jid=fr,from_jid=to,body="Not connected",stanza_type=typ)
             return 1
         if not to.resource and (to.node[0] in "#+!" or to.node.startswith(",amp,")):
             self.groupchat_message(stanza)
