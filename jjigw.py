@@ -13,6 +13,7 @@ import random
 import signal
 import Queue
 import time
+from types import StringType,UnicodeType
 
 from pyxmpp import ClientStream,JID,Iq,Presence,Message,StreamError
 import pyxmpp.jabberd
@@ -169,6 +170,42 @@ class Config:
 	if self.doc:
 	    self.doc.freeDoc()
 
+
+class Request:
+    def __init__(self,command,stanza,args=None):
+	self.command=command
+	self.stanza=stanza
+	self.args=args
+    def match(self,commands,args=None):
+	if type(commands) in (StringType,UnicodeType):
+	    commands=[commands]
+	for c in commands:
+	    if not self.command==c:
+		continue
+	    if args and not self.args==args:
+		continue
+	    return 1
+	return 0
+
+class RequestQueue:
+    def __init__(self,maxsize):
+	self.maxsize=maxsize
+	self.requests=[]
+    def get(self,commands,args=None):
+	for r in self.requests:
+	    if r.match(commands):
+		try:
+		    self.requests.remove(r)
+		except ValueError:
+		    pass
+		return r
+	return None
+    def add(self,command,stanza,args=None):
+	r=Request(command,stanza,args)
+	self.requests.append(r)
+	if len(self.requests)>10:
+	    self.requests=self.requests[-10:]
+
 class IRCUser:
     def __init__(self,session,nick,user="",host=""):
 	self.sync_delay=0
@@ -288,22 +325,7 @@ class Channel:
 	self.modes={}
 	self.users=[]
 	self.muc=0
-	self.requests=[]
-
-    def get_request(self,commands):
-	for command,stanza in self.requests:
-	    if command in commands:
-		try:
-		    self.requests.remove((command,stanza))
-		except ValueError:
-		    pass
-		return command,stanza
-	return None,None
-
-    def add_request(self,command,stanza):
-	self.requests.append((command,stanza.copy()))
-	if len(self.requests)>10:
-	    self.requests=self.requests[-10:]
+	self.requests=RequestQueue(10)
 
     def sync_user(self,user,status=None):
 	if user.channels.has_key(normalize(self.name)):
@@ -337,7 +359,7 @@ class Channel:
 	self.room_jid=stanza.get_to()
 	self.debug("Joining channel %r" % (self.name,))
 	self.session.send("JOIN %s" % (self.name,))
-	self.add_request("JOIN",stanza)
+	self.requests.add("JOIN",stanza)
 	self.state="join"
 	if stanza.get_join_info():
 	    self.muc=1
@@ -464,7 +486,7 @@ class Channel:
 	self.irc_error_response(prefix,command,params,["TOPIC"],"not-acceptable")
 
     def irc_error_response(self,prefix,command,params,requests,condition):
-	command,stanza=self.get_request(requests)
+	command,stanza=self.requests.get(requests)
 	if command:
 	    m=stanza.make_error_response(condition)
 	else:
@@ -483,7 +505,7 @@ class Channel:
 	self.session.component.send(m)
 
     def irc_cmd_TOPIC(self,prefix,command,params):
-	self.get_request(("TOPIC",))
+	self.requests.get("TOPIC")
 	topic=remove_evil_characters(params[1])
 	m=Message(fr=self.prefix_to_jid(prefix),to=self.session.jid,
 		type="groupchat", subject=unicode(topic,self.encoding,"replace"))
@@ -579,7 +601,7 @@ class Channel:
 		finally:
 		    self.session.user.sync_delay-=1
 		self.state="joined"
-		self.get_request(("JOIN",))
+		self.requests.get("JOIN")
 		self.session.send("MODE %s" % (self.name,))
 		self.session.send("WHO %s" % (self.name,))
 	else:
@@ -611,6 +633,11 @@ class Channel:
 		    unicode(actor.descr(),self.encoding,"replace")),
 		0)
 	user.leave_channel(self,status=307)
+	if user and self.session.check_prefix(prefix):
+	    r=self.requests.get("KICK",user.nick)
+	    if r:
+		iq=r.stanza.make_result_response()
+		self.session.component.send(iq)
 
     def irc_cmd_PRIVMSG(self,prefix,command,params):
 	self.debug("Message on channel %r" % (self.name,))
@@ -641,11 +668,11 @@ class Channel:
 	topic=topic.encode(self.encoding,"replace")
 	topic=topic.replace("\n"," ").replace("\r"," ")
 	self.session.send("TOPIC %s :%s" % (self.name,topic))
-	self.add_request("TOPIC",stanza)
+	self.requests.add("TOPIC",stanza)
 
     def kick_user(self,nick,reason,stanza):
 	self.session.send("KICK %s %s :%s" % (self.name,nick,reason))
-	self.add_request("KICK",stanza)
+	self.requests.add("KICK",stanza,nick)
    
     def __repr__(self):
 	return "<IRCChannel %r>" % (self.name,)
