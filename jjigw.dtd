@@ -1,5 +1,5 @@
 
-<!ELEMENT jjigw 		(connect,network) >
+<!ELEMENT jjigw 		(connect,network+) >
 
 <!ELEMENT connect 	(host,port,secret) >
 <!ELEMENT host 		(#PCDATA) >
@@ -9,7 +9,8 @@
 <!ELEMENT network 	(server+,channel*) >
 <!ATTLIST network 
 	jid 		CDATA		#REQUIRED
-	encoding 	CDATA		"us-ascii">
+	encoding 	CDATA		"us-ascii"
+	nicks_8bit	(yes|no)	"no">
 <!ELEMENT server 	(#PCDATA) >
 <!ATTLIST server 
 	port 		CDATA		"6667">
