@@ -418,12 +418,12 @@ class Component(pyxmpp.jabberd.Component):
             if len(node)==4 and node[3]=="users":
                 di=DiscoItems()
                 for u in sess.users.values():
-                    DiscoItem(di,to,string.join(node+[str(id(u))]),`u.nick`)
+                    DiscoItem(di,to,string.join(node+[str(id(u))],"."),`u.nick`)
                 return di
             if len(node)==4 and node[3]=="channels":
                 di=DiscoItems()
                 for ch in sess.channels.values():
-                    DiscoItem(di,to,string.join(node+[str(id(ch))]),`ch.name`)
+                    DiscoItem(di,to,string.join(node+[str(id(ch))],"."),`ch.name`)
                 return di
                 
         return iq.make_error_response("item-not-found")
