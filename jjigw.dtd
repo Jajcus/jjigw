@@ -1,0 +1,20 @@
+
+<!ELEMENT jjit 		(connect,network) >
+
+<!ELEMENT connect 	(host,port,secret) >
+<!ELEMENT host 		(#PCDATA) >
+<!ELEMENT port 		(#PCDATA) >
+<!ELEMENT secret 	(#PCDATA) >
+
+<!ELEMENT network 	(server+,channel*) >
+<!ATTLIST network 
+	jid 		CDATA		#REQUIRED
+	encoding 	CDATA		"us-ascii">
+<!ELEMENT server 	(#PCDATA) >
+<!ATTLIST server 
+	port 		CDATA		"6667">
+<!ELEMENT channel 	(#PCDATA) >
+<!ATTLIST channel 
+	encoding	CDATA		"us-ascii"
+	browsable	(yes|no)	"yes">
+
