@@ -38,6 +38,24 @@ class StaticDriver(Driver):
 	def lookup(self,localport,localip,remoteport,remoteip):
 		return self.reply
 
+class Mapping:
+	def __init__(self):
+		pass
+	def lookup(self,user):
+		return user
+
+class FileMapping(Mapping):
+	def __init__(self,path):
+		self.mapping={}
+		for l in file(path).xreadlines():
+			l=l.strip()
+			if not l:
+				continue
+			key,val=l.split(":")
+			self.mapping[key]=val
+	def lookup(self,user):
+		return self.mapping.get(user,user)
+
 class RealDriver(Driver):
 	def lookup(self,localport,localip,remoteport,remoteip):
 		try:
@@ -60,9 +78,6 @@ class RealDriver(Driver):
 			remip,remport=sp[2].split(":")
 			remip=socket.htonl(long(remip,16))&0xffffffffL
 			remport=int(remport,16)
-			print "%r:%r,%r:%r vs %r:%r,%r:%r" % (
-				localip,localport,remoteip,remoteport,
-				locip,locport,remip,remport)
 			if (localip,localport,remoteip,remoteport)!=(locip,locport,remip,remport):
 				continue
 			uid=int(sp[7])
@@ -139,12 +154,25 @@ class SocketDriverClient:
 
 class SocketDriver(Driver):
 	def __init__(self,path):
+		global socketmode,socketgroup,user,group
 		self.socket=socket.socket(socket.AF_UNIX)
 		try:
 			os.unlink(path)
 		except:
 			pass
 		self.socket.bind(path)
+		if socketmode is not None:
+			os.chmod(path,socketmode)
+		if os.getuid()==0:
+			gid=None
+			if socketgroup is not None:
+				gid=grp.getgrnam(socketgroup)[2]
+			elif group is not None:
+				gid=grp.getgrnam(group)[2]
+			elif user is not None:
+				gid=pwd.getpwname(user)[3]
+			if gid:
+				os.chown(path,0,gid)
 		self.socket.listen(1)
 		self.clients=[]
 		register_listening_socket(self.socket,self.accept_connection)
@@ -208,12 +236,21 @@ def input_thread(sock,addr):
 		print >>sys.stderr,"Invalid query"
 		return
 	reply=None
+	mapping=None
 	for d in drivers:
+		if isinstance(d,Mapping):
+			mapping=d
+			continue
+		if not isinstance(d,Driver):
+			continue
 		r=d.lookup(local,localip,remote,remoteip)
-		print `r`
 		if r is None:
 			continue
-		elif r.startswith("ERROR:"):
+		if mapping and not r.startswith("ERROR:"):
+			oldr=r
+			r=mapping.lookup(r)
+			print "%r -> %r" % (oldr,r)
+		if r.startswith("ERROR:"):
 			reply="%i,%i:%s" % (local,remote,r)
 			break
 		else:
@@ -231,7 +268,6 @@ def signal_handler(signum,frame):
 	exit=1
 	print >>sys.stderr,"Signal %i received, exiting." % (signum,)
 
-
 def accept_connection(sock):
 	th=threading.Thread(target=input_thread,args=sock.accept())
 	th.setDaemon(1)
@@ -248,15 +284,20 @@ def usage():
 	print "    -h --help              display this help and exit."
 	print "    -i ADDR --ip=ADDR      bind to IP address ADDR."
 	print "    -p PORT --port=PORT    bind to port PORT (default: 113)."
-	print "    -p USER --user=USER    when started with uid=0, switch "
+	print "    -u USER --user=USER    when started with uid=0, switch "
 	print "                           to user USER (default: 'nobody')"
 	print "    -p GROUP --group=GROUP when started with uid=0, switch "
 	print "                           to group GROUP (default: nobody's group)"
+	print "    --socketmode=MODE      access mode for listening socket (--socket driver)"
+	print "    --socketgroup=MODE     owner group for listening socket (--socket driver)"
 	print "Drivers:"
 	print "    --nouser               always reply with NO-USER error."
 	print "    --hidden               always reply with HIDDN-USER error."
 	print "    --fail                 always reply with UNKNOWN-ERROR error."
-	print "    --real                 reply with real connection user name (currently Linux only)."
+	print "    --real                 reply with real connection user name (currently Linux"
+	print "                           only)."
+	print "    --map=FILE             user mapping file FILE for results of the following "
+	print "                           drivers"
 	print "    --static=USER          always reply with the same USER reply."
 	print "    --socket=PATH          listen on UNIX socket PATH for other servers"
 	print "                           registering their connections."
@@ -267,11 +308,14 @@ group=None
 ip="0.0.0.0"
 port=113
 drivers=[]
+socketmode=0775
+socketgroup=None
 
 try:
-	opts,args=getopt.getopt(sys.argv[1:], "hi:p:u:g:", ["help","ip=","port=","user=","group=",
+	opts,args=getopt.getopt(sys.argv[1:], "hi:p:u:g:", ["help","ip=","port=","user=","group=","map=","socketmode=","socketgroup=",
 		"nouser","hidden","real","fail","static=","socket="])
-except:
+except Exception,e:
+	print e
 	usage()
 	sys.exit(2)
 for o,a in opts:
@@ -286,6 +330,10 @@ for o,a in opts:
 		user=a
 	if o in ("-g","--group"):
 		group=a
+	if o in ("--socketmode",):
+		socketmode=int(a,8)
+	if o in ("--socketgroup",):
+		socketgroup=a
 	if o in ("--nouser",):
 		drivers.append(NoUserDriver())
 	if o in ("--hidden",):
@@ -294,6 +342,8 @@ for o,a in opts:
 		drivers.append(FailDriver())
 	if o in ("--real",):
 		drivers.append(RealDriver())
+	if o in ("--map",):
+		drivers.append(FileMapping(a))
 	if o in ("--static",):
 		drivers.append(StaticDriver(a))
 	if o in ("--socket",):
