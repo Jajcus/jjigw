@@ -25,6 +25,7 @@ from pyxmpp.jabber.muc import MucPresence,MucItem,MucStatus
 from requests import Request,RequestQueue
 from common import channel_re
 from common import normalize,remove_evil_characters,strip_colors
+from ircuser import IRCUser
 
 class Channel:
     toggle_modes="aimnqpsrt"
@@ -43,7 +44,7 @@ class Channel:
         else:
             self.encoding=session.default_encoding
         self.modes={}
-        self.users=[]
+        self.users=[self.session.get_user()]
         self.muc=0
         self.requests=RequestQueue(10)
 
@@ -89,7 +90,7 @@ class Channel:
         if not self.state:
             self.debug("Channel %r in the initial state - nothing to do." % (self.name,))
         else:
-            if status:
+            if not status:
                 self.session.send("PART %s" % (self.name,))
             else:
                 self.session.send("PART %s :%s" % (self.name,
@@ -98,7 +99,7 @@ class Channel:
         p=MucPresence(type="unavailable",fr=stanza.get_to(),to=stanza.get_from(),status=status)
         self.session.component.send(p)
         for u in self.users:
-            u.leave_room(self)
+            u.leave_channel(self)
         self.state=None
 
     def prefix_to_jid(self,prefix):

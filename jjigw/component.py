@@ -20,12 +20,13 @@
 
 import signal
 import threading
+import string
 
 import pyxmpp.jabberd
 from pyxmpp import Presence
 from pyxmpp.jabber.muc import MUC_ADMIN_NS,MUC_NS
 from pyxmpp.jabber.muc import MucPresence,MucIq,MucAdminQuery
-from pyxmpp.jabber.disco import DiscoItems,DiscoInfo,DiscoIdentity
+from pyxmpp.jabber.disco import DiscoItems,DiscoItem,DiscoInfo,DiscoIdentity
 
 from ircsession import IRCSession
 from spidentd import SPIdentD
@@ -38,6 +39,7 @@ class Component(pyxmpp.jabberd.Component):
         self.shutdown=0
         signal.signal(signal.SIGINT,self.signal_handler)
         signal.signal(signal.SIGPIPE,self.signal_handler)
+        signal.signal(signal.SIGHUP,self.signal_handler)
         signal.signal(signal.SIGTERM,self.signal_handler)
         self.irc_sessions={}
         self.config=config
@@ -47,8 +49,22 @@ class Component(pyxmpp.jabberd.Component):
             self.ident_handler=None
 
     def get_session(self,user_jid,component_jid):
-        print `self.irc_sessions`
         return self.irc_sessions.get((user_jid.as_unicode(),component_jid.domain))
+        
+    def register_session(self,sess):
+        user_jid=sess.jid
+        component_jid=sess.network.jid
+        self.debug("Registering session: %r on %r for %r" % (sess,component_jid,user_jid))
+        self.irc_sessions[user_jid.as_unicode(),component_jid.domain]=sess
+
+    def unregister_session(self,sess):
+        user_jid=sess.jid
+        component_jid=sess.network.jid
+        self.debug("Unregistering session: %r on %r for %r" % (sess,component_jid,user_jid))
+        try:
+            del self.irc_sessions[user_jid.as_unicode(),component_jid.domain]
+        except KeyError:
+            self.debug("Session not found!")
 
     def signal_handler(self,signum,frame):
         self.debug("Signal %i received, shutting down..." % (signum,))
@@ -268,25 +284,22 @@ class Component(pyxmpp.jabberd.Component):
                 p=stanza.make_error_response("conflict")
                 self.send(p)
                 return 1
-            if to not in sess.used_for:
-                sess.used_for.append(to)
         else:
             nick=to.resource
             if not nick:
                 nick=fr.node
-            sess=IRCSession(self,self.config,to,fr,nick)
-            sess.used_for.append(to)
-            self.irc_sessions[fr.as_unicode(),to.domain]=sess
+            try:
+                sess=IRCSession(self,self.config,to,fr,nick)
+            except ValueError,e:
+                print `e`
+                e=stanza.make_error_response("bad-request")
+                self.send(e)
+                return
+            self.register_session(sess)
         if to.node:
             sess.join(MucPresence(stanza))
         else:
-            p=Presence(
-                to=stanza.get_from(),
-                fr=stanza.get_to(),
-                show=stanza.get_show(),
-                status=stanza.get_status()
-                );
-            self.send(p)
+            sess.login(stanza)
         return 1
 
     def presence_unavailable(self,stanza):
@@ -295,24 +308,13 @@ class Component(pyxmpp.jabberd.Component):
         status=stanza.get_status()
         sess=self.get_session(fr,to)
         if sess:
-            try:
-                sess.used_for.remove(to)
-            except ValueError:
-                pass
-            if not sess.used_for:
-                sess.disconnect(status)
-                try:
-                    del self.irc_sessions[fr.as_unicode(),to.domain]
-                except KeyError:
-                    pass
-        p=Presence(
-            type="unavailable",
-            to=stanza.get_from(),
-            fr=stanza.get_to()
-            );
-        self.stream.send(p)
+            if to.node:
+                disconnected=sess.leave(stanza)
+            else:
+                disconnected=sess.logout(stanza)
+            if disconnected:
+                self.unregister_session(sess)
         return 1
-
 
     def presence_control(self,stanza):
         p=stanza.make_accept_response()
@@ -334,7 +336,8 @@ class Component(pyxmpp.jabberd.Component):
         except KeyError:
             return iq.make_error_response("recipient-unavailable")
         if to.node is None and to.resource is None:
-                di=DiscoInfo()
+            di=DiscoInfo()
+            if node is None:
                 di.add_feature("jabber:iq:version")
                 di.add_feature("jabber:iq:register")
                 di.add_feature(MUC_NS)
@@ -343,17 +346,86 @@ class Component(pyxmpp.jabberd.Component):
                 else:
                     name="IRC gateway"
                 DiscoIdentity(di,name,"gateway","irc")
-                return di
+            return di
+        elif len(to.node)>1 and to.node[0] in u"&#+!" and to.resource is None:
+            di=DiscoInfo()
+            di.add_feature(MUC_NS)
+            if network.name:
+                name="%s channel on %s IRC network" % (to.node,network.name)
+            else:
+                name="%s IRC channel" % (to.node,)
+            DiscoIdentity(di,name ,"conference","text")
+            return di
         return iq.make_error_response("feature-not-implemented")
 
     def disco_get_items(self,node,iq):
         to=iq.get_to()
+        fr=iq.get_from()
         try:
             network=self.config.get_network(to)
         except KeyError:
             return iq.make_error_response("recipient-unavailable")
-        if to.node is None and to.resource is None:
-                return self.disco_items
-        return iq.make_error_response("feature-not-implemented")
+        if to.node is not None or to.resource is not None:
+            return iq.make_error_response("feature-not-implemented")
+        if not node:
+            di=DiscoItems()
+            print "Requester: %r Admins: %r" % (fr,self.config.admins)
+            if fr in self.config.admins or fr.bare() in self.config.admins:
+                DiscoItem(di,to,"admin","Administrator tree")
+            return di
+        if node=="admin" or node.startswith("admin."):
+            if fr not in self.config.admins and fr.bare() not in self.config.admins:
+                return iq.make_error_response("forbidden")
+        else:
+            return iq.make_error_response("item-not-found")
+        node=node.split(".")
+        if node==["admin"]:
+            di=DiscoItems()
+            DiscoItem(di,to,"admin.sessions","Sessions (jid nick)")
+            return di
+        if node==["admin","sessions"]:
+            di=DiscoItems()
+            for sess in self.irc_sessions.values():
+                if not sess.network==network:
+                    continue
+                DiscoItem(di,to,"admin.sessions.%s" % (id(sess),),
+                        u"%r %r" % (sess.jid.as_unicode(),sess.nick))
+            return di
+        if len(node)>2 and node[:2]==["admin","sessions"]:
+            try:
+                sessid=int(node[2])
+            except ValueError:
+                return iq.make_error_response("item-not-found")
+            sess=None
+            for s in self.irc_sessions.values():
+                if id(s)==sessid:
+                    sess=s
+                    break
+            if sess is None:
+                return iq.make_error_response("item-not-found")
+            if len(node)==3:
+                di=DiscoItems()
+                DiscoItem(di,sess.jid,None,"Owner")
+                DiscoItem(di,to,string.join(node+["used_for"],"."),"Used for")
+                DiscoItem(di,to,string.join(node+["users"],"."),"Known IRC users")
+                DiscoItem(di,to,string.join(node+["channels"],"."),"Active channels")
+                return di
+            if len(node)==4 and node[3]=="used_for":
+                di=DiscoItems()
+                for j in sess.used_for:
+                    DiscoItem(di,j,None,j.as_unicode())
+                return di
+            if len(node)==4 and node[3]=="users":
+                di=DiscoItems()
+                for u in sess.users.values():
+                    DiscoItem(di,to,string.join(node+[str(id(u))]),`u.nick`)
+                return di
+            if len(node)==4 and node[3]=="channels":
+                di=DiscoItems()
+                for ch in sess.channels.values():
+                    DiscoItem(di,to,string.join(node+[str(id(ch))]),`ch.name`)
+                return di
+                
+        return iq.make_error_response("item-not-found")
 
 # vi: sts=4 et sw=4

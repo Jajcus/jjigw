@@ -23,15 +23,16 @@ import socket
 import md5
 import select
 import string
+import random
 
-
-from pyxmpp import Presence
+from pyxmpp import Message,Presence,JID
 from pyxmpp.jabber.muc import MucPresence
 
 from ircuser import IRCUser
 from channel import Channel
 from common import ConnectionInfo
 from common import node_to_channel,normalize
+from common import remove_evil_characters,strip_colors
 from common import channel_re,numeric_re
 
 class IRCSession:
@@ -59,12 +60,14 @@ class IRCSession:
         self.input_buffer=""
         self.used_for=[]
         self.server=None
+        self.login_requests=[]
         self.join_requests=[]
         self.messages_to_channel=[]
         self.messages_to_user=[]
         self.ready=0
         self.channels={}
         self.users={}
+        self.raw_channel=0
         self.user=IRCUser(self,nick)
         self.thread.start()
 
@@ -96,13 +99,17 @@ class IRCSession:
         finally:
             self.lock.release()
 
-    def get_user(self,prefix,create=1):
-        if "!" in prefix:
-            nick=prefix.split("!",1)[0]
+    def get_user(self,prefix=None,create=1):
+        if prefix:
+            if "!" in prefix:
+                nick=prefix.split("!",1)[0]
+            else:
+                nick=prefix
+            if not self.network.valid_nick(nick):
+                return None
         else:
-            nick=prefix
-        if not self.network.valid_nick(nick):
-            return None
+            prefix=self.nick
+            nick=self.nick
         nnick=normalize(nick)
         if self.users.has_key(nnick):
             return self.users[nnick]
@@ -163,10 +170,7 @@ class IRCSession:
                 except:
                     pass
                 self.socket=None
-            try:
-                del self.component.irc_sessions[self.jid.as_unicode()]
-            except KeyError:
-                pass
+            self.component.unregister_session(self)
         finally:
             self.lock.release()
         for j in self.used_for:
@@ -220,11 +224,15 @@ class IRCSession:
             self.socket=None
         server=self.servers_left.pop(0)
         self.debug("Trying to connect to %r" % (server,))
+        if self.raw_channel:
+            self.pass_message_to_raw_channel("Connecting to %s:%s..." % (server.host,server.port))
         try:
             self.socket=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
             self.socket.connect((server.host,server.port))
         except (IOError,OSError,socket.error),err:
             self.debug("Server connect error: %r" % (err,))
+            if self.raw_channel:
+                self.pass_message_to_raw_channel("Connect error: %r" % (err,))
             if self.socket:
                 try:
                     self.socket.close()
@@ -235,6 +243,8 @@ class IRCSession:
                     pass
             self.socket=None
             return
+        if self.raw_channel:
+            self.pass_message_to_raw_channel("Connected.")
         self._send("NICK %s" % (self.nick,))
         user=md5.new(self.jid.bare().as_string()).hexdigest()[:64]
         self.conninfo=ConnectionInfo(self.socket,user)
@@ -247,6 +257,8 @@ class IRCSession:
         if self.socket and not self.exited:
             self.debug("IRC OUT: %r" % (str,))
             self.socket.send(str+"\r\n")
+            if self.raw_channel:
+                self.pass_output_to_raw_channel(str)
         else:
             self.debug("ignoring out: %r" % (str,))
 
@@ -283,6 +295,8 @@ class IRCSession:
                 break
             params.append(split[0])
             split=split[1:]
+        if self.raw_channel:
+            self.pass_input_to_raw_channel(prefix,command,params)
         if command and numeric_re.match(command):
             params=params[1:]
         self.lock.release()
@@ -297,11 +311,6 @@ class IRCSession:
                 f=getattr(self,"irc_cmd_"+command,None)
             if f:
                 f(prefix,command,params)
-            else:
-                for u in self.used_for:
-                    if u.bare()==self.network.jid:
-                        self.pass_input_to_user(prefix,command,params)
-                        break
         finally:
             self.lock.acquire()
 
@@ -325,7 +334,7 @@ class IRCSession:
         self.irc_message(prefix,command,params)
 
     def irc_message(self,prefix,command,params):
-        if len(params)<2:
+        if len(params)<2 or not prefix:
             self.debug("ignoring it")
             return
         user=self.get_user(prefix)
@@ -346,7 +355,7 @@ class IRCSession:
         self.lock.acquire()
         try:
             if join_condition:
-                for s in self.join_requests:
+                for s in self.join_requests+self.login_requests:
                     p=s.make_error_response(join_condition)
                     self.component.send(p)
                     try:
@@ -354,6 +363,7 @@ class IRCSession:
                     except ValueError:
                         pass
                 self.join_requests=[]
+                self.login_requests=[]
             if message_condition:
                 for s in self.messages_to_user+self.messages_to_channel:
                     p=s.make_error_response(message_condition)
@@ -369,6 +379,8 @@ class IRCSession:
         try:
             self.debug("Connected successfully")
             self.ready=1
+            for s in self.login_requests:
+                self.login(s)
             for s in self.join_requests:
                 self.join(s)
             for s in self.messages_to_user:
@@ -434,10 +446,13 @@ class IRCSession:
             self.debug("too short - ignoring")
             return
         user=self.get_user(params[4])
-        user.whoreply(params)
-        for c in user.channels.keys():
-            channel=user.channels[c]
-            self.component.send(channel.get_user_presence(user))
+        if not user:
+            self.debug("User: %r not found" % (params[4],))
+        else:
+            user.whoreply(params)
+            for c in user.channels.keys():
+                channel=user.channels[c]
+                self.component.send(channel.get_user_presence(user))
 
     def send_error_message(self,source,cond,text):
         text=remove_evil_characters(text)
@@ -456,28 +471,43 @@ class IRCSession:
                     to=self.jid,fr=fr)
         self.component.send(m)
 
-    def pass_input_to_user(self,prefix,command,params):
-        if command in self.commands_dont_show:
-            return
-        nprefix=normalize(prefix)
-        nnick=normalize(self.nick)
-        nserver=normalize(self.server.host)
-        if nprefix==nnick or prefix and nprefix.startswith(nnick+"!"):
-            return
-        if nprefix==nserver and len(params)==2 and params[0]==self.nick:
-            body=u"(!) %s" % (unicode(params[1],self.default_encoding,"replace"),)
-        elif command in ("004","005","252","253","254"):
-            p=string.join(params[1:]," ")
-            body=u"(!) %s" % (unicode(p,self.default_encoding,"replace"),)
-        elif prefix:
-            body=u"(%s) %s %r" % (prefix,command,params)
+    def pass_input_to_raw_channel(self,prefix,command,params):
+        body=string.join([command]+params)
+        body=`body`
+        if body[0] in '"\'':
+            body=body[1:-1]
+        body=unicode(body,self.default_encoding,"replace")
+        if prefix:
+            prefix=remove_evil_characters(prefix)
+            prefix=`prefix`
+            if prefix[0] in '"\'':
+                prefix=prefix[1:-1]
+            prefix=unicode(prefix,self.default_encoding,"replace")
         else:
-            body=u"%s %r" % (command,params)
-        fr=JID(None,self.network.jid.domain,self.server.host)
-        m=Message(to=self.jid,fr=fr,body=body)
+            prefix=None
+        fr=JID('#',self.network.jid.domain,prefix)
+        m=Message(to=self.jid,fr=fr,body=body,type="groupchat")
+        self.component.send(m)
+
+    def pass_output_to_raw_channel(self,s):
+        body=`s`
+        if body[0] in '"\'':
+            body=body[1:-1]
+        body=unicode(body,self.default_encoding,"replace")
+        nick=unicode(self.nick,self.default_encoding,"replace")
+        fr=JID('#',self.network.jid.domain,nick)
+        m=Message(to=self.jid,fr=fr,body=body,type="groupchat")
+        self.component.send(m)
+
+    def pass_message_to_raw_channel(self,msg):
+        fr=JID('#',self.network.jid.domain,None)
+        m=Message(to=self.jid,fr=fr,body=msg,type="groupchat")
         self.component.send(m)
 
     def join(self,stanza):
+        to=stanza.get_to()
+        if to.node=='#':
+            return self.join_raw_channel(stanza)
         self.cond.acquire()
         try:
             if not self.ready:
@@ -485,13 +515,91 @@ class IRCSession:
                 return
         finally:
             self.cond.release()
-        to=stanza.get_to()
-        channel=node_to_channel(to.node,self.default_encoding)
+        try:
+            channel=node_to_channel(to.node,self.default_encoding)
+        except ValueError:
+            e=stanza.make_error_response("not-acceptable")
+            self.component.send(e)
+            return
         if self.channels.has_key(normalize(channel)):
             return
+        if to not in self.used_for:
+            self.used_for.append(to)
         channel=Channel(self,channel)
         channel.join(stanza)
         self.channels[normalize(channel.name)]=channel
+
+    def join_raw_channel(self,stanza):
+        self.raw_channel=1
+        to=stanza.get_to()
+        if to not in self.used_for:
+            self.used_for.append(to)
+        p=Presence(fr=to,to=stanza.get_from())
+        self.component.send(p)
+
+    def leave(self,stanza):
+        to=stanza.get_to()
+        if to.node=='#':
+            return self.leave_raw_channel(stanza)
+        channel=self.get_channel(stanza.get_to())
+        if channel:
+           channel.leave(stanza) 
+           self.logout(stanza,0)
+        else:
+           self.logout(stanza)
+
+    def leave_raw_channel(self,stanza):
+        self.raw_channel=0
+        self.logout(stanza)
+
+    def login(self,stanza):
+        self.cond.acquire()
+        try:
+            if not self.ready:
+                self.login_requests.append(stanza)
+                return
+        finally:
+            self.cond.release()
+        to=stanza.get_to()
+        if to not in self.used_for:
+            self.used_for.append(to)
+        fr=stanza.get_from()
+        p=Presence(to=fr,fr=to,status=stanza.get_status(),show=stanza.get_show())
+        self.component.send(p)
+
+    def logout(self,stanza,send_response=1):
+        to=stanza.get_to()
+        if to not in self.used_for:
+            self.debug("Unavailable presence sent with no matching available presence, ignoring it")
+            return 0
+        try:
+            self.used_for.remove(to)
+        except:
+            pass
+        if send_response:
+            p=Presence(
+                type="unavailable",
+                to=stanza.get_from(),
+                fr=stanza.get_to()
+                );
+            self.component.send(p)
+        if not self.used_for:
+            self.disconnect(stanza.get_status())
+            return 1
+        else:
+            return 0
+
+    def channel_left(self,channel):
+        if not channel.room_jid:
+            return
+        if channel.room_jid not in self.used_for:
+            return
+        try:
+            self.used_for.remove(channel.room_jid)
+        except:
+            pass
+        if not self.used_for:
+            self.disconnect(stanza.get_status())
 
     def get_channel(self,jid):
         channel_name=jid.node
