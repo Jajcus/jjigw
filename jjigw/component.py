@@ -50,7 +50,7 @@ class Component(pyxmpp.jabberd.Component):
 
     def get_session(self,user_jid,component_jid):
         return self.irc_sessions.get((user_jid.as_unicode(),component_jid.domain))
-        
+
     def register_session(self,sess):
         user_jid=sess.jid
         component_jid=sess.network.jid
@@ -425,7 +425,7 @@ class Component(pyxmpp.jabberd.Component):
                 for ch in sess.channels.values():
                     DiscoItem(di,to,string.join(node+[str(id(ch))],"."),`ch.name`)
                 return di
-                
+
         return iq.make_error_response("item-not-found")
 
 # vi: sts=4 et sw=4

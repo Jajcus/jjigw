@@ -543,7 +543,7 @@ class IRCSession:
             return self.leave_raw_channel(stanza)
         channel=self.get_channel(stanza.get_to())
         if channel:
-           channel.leave(stanza) 
+           channel.leave(stanza)
            self.logout(stanza,0)
         else:
            self.logout(stanza)
