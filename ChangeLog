@@ -1,6 +1,10 @@
 2004-02-15  Jacek Konieczny  <jajcus@bnet.pl>
 
 	* jjigw.py:
+	- "Mode change" messages fixed
+	- What the hell was "import user" for? I have never known anything about this module.
+
+	* jjigw.py:
 	- Request and RequestQueue classes
 	- confirm kick with <iq type="result"/> response
 
