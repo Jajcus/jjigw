@@ -1,3 +1,14 @@
+2004-06-25  Jacek Konieczny  <jajcus@bnet.pl>
+
+	* jjigw/channel.py, jjigw/ircsession.py, jjigw/ircuser.py:
+	- don't use two (or more) different IRCUser instances for one Jabber user
+	  (fixes "disconnection on connection")
+	- don't try to include user and host in the IRC user's "real JID" if they are not known
+	- a bit more of debug code added
+
+	* .cvsignore:
+	- more ignores
+
 2004-06-16  Jacek Konieczny  <jajcus@bnet.pl>
 
 	* .cvslog:
