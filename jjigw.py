@@ -434,7 +434,7 @@ class Channel:
 	self.session.component.send(m)
 
     def irc_cmd_332(self,prefix,command,params): # RPL_TOPIC
-	topic=params[1]
+	topic=remove_evil_characters(params[1])
 	m=Message(fr=self.room_jid.bare(),to=self.session.jid,
 		type="groupchat", subject=unicode(topic,self.encoding,"replace"))
 	self.session.component.send(m)
@@ -445,7 +445,7 @@ class Channel:
 		del self.requests["TOPIC"]
 	    except KeyError:
 		pass
-	topic=params[1]
+	topic=remove_evil_characters(params[1])
 	m=Message(fr=self.prefix_to_jid(prefix),to=self.session.jid,
 		type="groupchat", subject=unicode(topic,self.encoding,"replace"))
 	self.session.component.send(m)
@@ -1000,6 +1000,7 @@ class IRCSession:
    
     def send_error_message(self,source,cond,text):
 	self.debug("send_error_message(self,%r,%r,%r)" % (source,cond,text))
+	text=remove_evil_characters(text)
    	user=self.get_user(source)
 	if user:
 	    self.unregister_user(user)
