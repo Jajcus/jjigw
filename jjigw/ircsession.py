@@ -362,6 +362,9 @@ class IRCSession:
             self.debug("ignoring it")
             return
         user=self.get_user(prefix)
+        if not user:
+            self.debug("could not convert %r to IRCUser object" % (prefix,))
+            return
         if user.current_thread:
             typ,thread,fr=user.current_thread
         else:
