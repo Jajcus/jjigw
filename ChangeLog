@@ -1,3 +1,12 @@
+2004-02-12  Jacek Konieczny  <jajcus@bnet.pl>
+
+	* spidentd.py:
+	- mapping file support
+	- some debug messages removed
+
+	* jjigw.py:
+	- use MD5 instead SHA to generate userid
+
 2004-02-11  Jacek Konieczny  <jajcus@bnet.pl>
 
 	* TODO, jjigw.dtd, jjigw.py, spidentd.py:
