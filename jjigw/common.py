@@ -35,8 +35,8 @@ def strip_colors(s):
 
 numeric_re=re.compile(r"\d\d\d")
 channel_re=re.compile(r"^[&#+!][^\000 \007 ,:\r\n]{1,49}$")
-nick_re=re.compile(r"^[a-zA-Z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}][a-zA-Z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}0-9-]{0,8}$")
-nick8_re=re.compile(r"^[a-zA-Z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}\x80-\xff][a-zA-Z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}0-9\x80-\xff-]{0,8}$")
+nick_re=re.compile(r"^[a-zA-Z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}][a-zA-Z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}0-9-]*$")
+nick8_re=re.compile(r"^[a-zA-Z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}\x80-\xff][a-zA-Z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}0-9\x80-\xff-]*$")
 
 def escape_node_string(s):
     s=s.replace(",quot,",'"')
