@@ -14,7 +14,7 @@ import signal
 
 from pyxmpp import ClientStream,JID,Iq,Presence,Message,StreamError
 import pyxmpp.jabberd
-from pyxmpp.jabber.muc import MucPresence,MucX,MucUserX,MucItem,MUC_NS
+from pyxmpp.jabber.muc import MucPresence,MucX,MucUserX,MucItem,MUC_NS,MucStatus
 
 class JJIGWFatalError(RuntimeError):
     pass
@@ -259,7 +259,6 @@ class Channel:
 	self.name=name
 	self.session=session
 	self.state=None
-	self.stanza=None
 	self.room_jid=None
 	self.config=session.network.get_channel_config(name)
 	if self.config and self.config.encoding:
@@ -269,6 +268,7 @@ class Channel:
 	self.modes={}
 	self.users=[]
 	self.muc=0
+	self.requests={}
 
     def sync_user(self,user):
 	if user.channels.has_key(normalize(self.name)):
@@ -302,7 +302,7 @@ class Channel:
 	self.room_jid=stanza.get_to()
 	self.debug("Joining channel %r" % (self.name,))
 	self.session.send("JOIN %s" % (self.name,))
-	self.stanza=stanza.copy()
+	self.requests["JOIN"]=stanza.copy()
 	self.state="join"
 	if stanza.get_join_info():
 	    self.muc=1
@@ -318,7 +318,6 @@ class Channel:
 		self.session.send("PART %s :%s" % (self.name,
 			status.encode(self.encoding,"replace")))
 	    self.state=None
-	    self.stanza=None
 	p=MucPresence(type="unavailable",fr=stanza.get_to(),to=stanza.get_from(),status=status)
 	self.session.component.send(p)
 	for u in self.users:
@@ -353,11 +352,13 @@ class Channel:
 	    else:
 		aff="none"
 		role="participant"
-	    ui=p.make_muc_userinfo(status=status)
+	    ui=p.make_muc_userinfo()
 	    if nick:
 		nick=unicode(user.nick,self.encoding,"replace")
 	    it=MucItem(aff,role,user.jid(),nick=nick,actor=actor,reason=reason)
 	    ui.add_item(it)
+	    if status:
+		ui.add_item(MucStatus(status))
 	return p
 
     def nick_changed(self,oldnick,user):
@@ -405,6 +406,36 @@ class Channel:
 	    except KeyError:
 		pass
 	self.irc_cmd_MODE(prefix,command,params)
+	
+    def irc_cmd_482(self,prefix,command,params): # ERR_CHANOPRIVSNEEDED
+	stanza=self.requests.get("TOPIC")
+	if stanza:
+	    m=stanza.make_error_response("forbidden")
+	    try:
+		del self.requests["TOPIC"]
+	    except KeyError:
+		pass
+	else:
+	    m=Message(fr=self.room_jid.bare(),to=self.session.jid,
+		    type="error", error_cond="forbidden")
+	self.session.component.send(m)
+
+    def irc_cmd_332(self,prefix,command,params): # RPL_TOPIC
+	topic=params[1]
+	m=Message(fr=self.room_jid.bare(),to=self.session.jid,
+		type="groupchat", subject=unicode(topic,self.encoding,"replace"))
+	self.session.component.send(m)
+	
+    def irc_cmd_TOPIC(self,prefix,command,params):
+	if self.session.check_prefix(prefix):
+	    try:
+		del self.requests["TOPIC"]
+	    except KeyError:
+		pass
+	topic=params[1]
+	m=Message(fr=self.prefix_to_jid(prefix),to=self.session.jid,
+		type="groupchat", subject=unicode(topic,self.encoding,"replace"))
+	self.session.component.send(m)
 	
     def irc_cmd_MODE(self,prefix,command,params):
 	self.debug("irc_cmd_mode(%r,%r,%r)" % (prefix,command,params))
@@ -481,7 +512,10 @@ class Channel:
 		finally:
 		    self.session.user.sync_delay-=1
 		self.state="joined"
-		self.stanza=None
+		try:
+		    del self.requests["JOIN"]
+		except KeyError:
+		    pass
 		self.session.send("MODE %s" % (self.name,))
 		self.session.send("WHO %s" % (self.name,))
 	else:
@@ -525,7 +559,13 @@ class Channel:
 	    self.session.component.send(m)
 	else:
 	    self.debug("Unknown CTCP command: %r %r" % (command,arg))
-	    
+
+    def change_topic(self,topic,stanza):
+	topic=topic.encode(self.encoding,"replace")
+	topic=topic.replace("\n"," ").replace("\r"," ")
+	self.session.send("TOPIC %s :%s" % (self.name,topic))
+	self.requests["TOPIC"]=stanza
+   
     def __repr__(self):
 	return "<IRCChannel %r>" % (self.name,)
 
@@ -614,6 +654,13 @@ class IRCSession:
 	    return 1
 	else:
 	    return 0
+
+    def check_prefix(self,prefix):
+	if "!" in prefix:
+	    nick=prefix.split("!",1)[0]
+	else:
+	    nick=prefix
+	return normalize(nick)==normalize(self.nick)
 
     def thread_run(self):
 	clean_exit=1
@@ -885,7 +932,7 @@ class IRCSession:
 	    self.debug("announcing %r presence on channel %r" % (user.nick,c))
 	    channel=user.channels[c]
 	    self.component.send(channel.get_user_presence(user))
-	    
+    
     def pass_input_to_user(self,prefix,command,params):
 	if command in self.commands_dont_show:
 	    return
@@ -924,6 +971,7 @@ class IRCSession:
 	self.channels[normalize(channel.name)]=channel
 
     def message_to_channel(self,stanza):
+	self.debug("message_to_channel(%r)" % (stanza,))
 	self.cond.acquire()
 	try:
 	    if not self.ready:
@@ -931,23 +979,37 @@ class IRCSession:
 		return
 	finally:
 	    self.cond.release()
+	self.debug("message_to_channel: no need to wait")
 	channel_name=stanza.get_to().node
+	self.debug("channel_name: %r" % (channel_name,))
 	channel_name=node_to_channel(channel_name,self.default_encoding)
+	self.debug("channel_name: %r" % (channel_name,))
 	if not channel_re.match(channel_name):
 	    self.debug("Bad channel name: %r" % (channel_name,))
 	    return
 	channel=self.channels.get(normalize(channel_name))
+	self.debug("channel: %r" % (channel,))
 	if channel:
 	    encoding=channel.encoding
 	else:
 	    encoding=self.default_encoding
-	body=stanza.get_body().encode(encoding,"replace")
-	body=body.replace("\n"," ").replace("\r"," ")
-	if body.startswith("/me "):
-	    body="\001ACTION "+body[4:]+"\001"
-	self.send("PRIVMSG %s :%s" % (channel_name,body))
-	if channel:
-	    channel.irc_cmd_PRIVMSG(self.nick,"PRIVMSG",[channel_name,body])
+	self.debug("encoding: %r" % (encoding,))
+	subject=stanza.get_subject()
+	self.debug("subject: %r" % (subject,))
+	if subject and channel:
+	    channel.change_topic(subject,stanza.copy())
+	body=stanza.get_body()
+	self.debug("body: %r" % (body,))
+	if body:
+	    body=body.encode(encoding,"replace")
+	    body=body.replace("\n"," ").replace("\r"," ")
+	    self.debug("body: %r" % (body,))
+	    if body.startswith("/me "):
+		body="\001ACTION "+body[4:]+"\001"
+	    self.send("PRIVMSG %s :%s" % (channel_name,body))
+	    if channel:
+		channel.irc_cmd_PRIVMSG(self.nick,"PRIVMSG",[channel_name,body])
+	self.debug("message_to_channel: done")
 
     def message_to_user(self,stanza):
 	self.cond.acquire()
@@ -997,6 +1059,7 @@ class Component(pyxmpp.jabberd.Component):
 		category="gateway",type="irc")
 	self.shutdown=0
 	signal.signal(signal.SIGINT,self.signal_handler)
+	signal.signal(signal.SIGPIPE,self.signal_handler)
 	signal.signal(signal.SIGTERM,self.signal_handler)
 	self.irc_sessions={}
 	self.config=config
