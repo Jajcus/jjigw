@@ -19,7 +19,7 @@ UNINSTALL_DIR=rm -r
 pkg_datadir=$(datadir)/jjigw
 pkg_docdir=$(docdir)/jjigw
 
-VERSION=0.1
+VERSION=0.2
 
 PY_DIRS=jjigw
 DOCS=INSTALL README TODO jjigw.xml.example
