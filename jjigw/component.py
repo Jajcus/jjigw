@@ -28,6 +28,7 @@ from pyxmpp.jabber.muc import MucPresence,MucIq,MucAdminQuery
 from pyxmpp.jabber.disco import DiscoItems,DiscoInfo,DiscoIdentity
 
 from ircsession import IRCSession
+from spidentd import SPIdentD
 
 class Component(pyxmpp.jabberd.Component):
     def __init__(self,config):
