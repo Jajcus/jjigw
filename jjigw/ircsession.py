@@ -684,9 +684,17 @@ class IRCSession:
         else:
             nick=to.node
             thread_fr=None
-        nick=node_to_nick(nick,self.default_encoding,self.network)
+        try:
+            nick=node_to_nick(nick,self.default_encoding,self.network)
+        except ValueError:
+            debug("Bad nick: %r" % (nick,))
+            e=stanza.make_error_response("not-acceptable")
+            self.component.send(e)
+            return
         if not self.network.valid_nick(nick):
             debug("Bad nick: %r" % (nick,))
+            e=stanza.make_error_response("not-acceptable")
+            self.component.send(e)
             return
         user=self.get_user(nick)
         user.current_thread=stanza.get_type(),stanza.get_thread(),thread_fr
