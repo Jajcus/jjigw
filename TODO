@@ -1,7 +1,3 @@
-- handling of received QUIT and NICK messages (for proper nickname synchronization)
-- IRC stream error handling
-- IRC-nick to user-JID mapping
-- MUC support (so channel operators etc. are shown)
-- Nick/channel name escaping (they could contain characters disallowed in JIDs)
-- "private" chats
+- more IRC stream error handling
+- more MUC support - topic change, kick, ban, invite
 - simple ident server with "uplink" capability
