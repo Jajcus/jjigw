@@ -1,5 +1,5 @@
 
-<!ELEMENT jjit 		(connect,network) >
+<!ELEMENT jjigw 		(connect,network) >
 
 <!ELEMENT connect 	(host,port,secret) >
 <!ELEMENT host 		(#PCDATA) >
@@ -16,5 +16,5 @@
 <!ELEMENT channel 	(#PCDATA) >
 <!ATTLIST channel 
 	encoding	CDATA		"us-ascii"
-	browsable	(yes|no)	"yes">
+	browseable	(yes|no)	"yes">
 
