@@ -1,3 +1,14 @@
+2004-05-26  Jacek Konieczny  <jajcus@bnet.pl>
+
+	* jjigw/channel.py:
+	- syntax error fixed
+
+	* jjigw/channel.py:
+	- don't treat 477 response as error
+
+	* jjigw.dtd, jjigw/config.py, jjigw/ircsession.py:
+	- do not be so strict about nicknames received from server, allow other maximum nick size to be configured
+
 2004-05-16  Jacek Konieczny  <jajcus@bnet.pl>
 
 	* INSTALL:
