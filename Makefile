@@ -32,8 +32,8 @@ EXTRA_DIST=Makefile jjigw.py jjigw.dtd spidentd.py catalog.xml
 all: version jjigw.py.inst catalog.xml.inst
 
 version:
-	if test -f "CVS/Entries" ; then \
-		echo "version='$(VERSION)+cvs'" > jjigw/version.py ; \
+	if test -f "SVN/Entries" ; then \
+		echo "version='$(VERSION)+svn'" > jjigw/version.py ; \
 	fi
 
 jjigw.py.inst: jjigw.py

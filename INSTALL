@@ -4,7 +4,7 @@
 	- Python - http://www.python.org/
 	- PyXMPP - http://pyxmpp.jabberstudio.org/
 
-  For latest CVS version of JJIGW you will probably need the latest CVS version of PyXMPP.
+  For latest SVN version of JJIGW you will probably need the latest SVN version of PyXMPP.
 
   Release 0.2 was tested with Python 2.3.3 and PyXMPP 0.5.
 
