@@ -20,6 +20,7 @@ pkg_datadir=$(datadir)/jjigw
 pkg_docdir=$(docdir)/jjigw
 
 VERSION=0.2.1
+SNAPSHOT=
 
 PY_DIRS=jjigw
 DOCS=INSTALL README TODO jjigw.xml.example
@@ -77,7 +78,7 @@ uninstall:
 	-$(UNINSTALL) $(DESTDIR)$(bindir)/spidentd
 
 dist: all
-	echo "version='$(VERSION)'" > jjigw/version.py ; \
+	echo "version='$(VERSION)$(SNAPSHOT)'" > jjigw/version.py ; \
 	version=`python -c "import jjigw.version; print jjigw.version.version"` ; \
 	distname=jjigw-$$version ; \
 	for d in $(PY_DIRS) ; do \
