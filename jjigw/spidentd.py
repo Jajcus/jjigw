@@ -20,9 +20,11 @@
 import Queue
 import threading
 import socket
+import logging
 
 class SPIdentD:
     def __init__(self,component,config):
+        self.__logger=logging.getLogger("jjigw.SPIdentD")
         self.socket_path=config.socket
         self.component=component
         self.socket=None
@@ -39,7 +41,7 @@ class SPIdentD:
                     self.socket.connect(self.socket_path)
                     self.loop()
                 except socket.error:
-                    self.print_exception()
+                    self.__logger.exception("Exception cought:")
                     pass
             finally:
                 try:
@@ -80,11 +82,5 @@ class SPIdentD:
 
     def unregister_connection(self,conninfo):
         self.queue.put(("remove",conninfo))
-
-    def debug(self,msg):
-        self.component.debug(msg)
-
-    def print_exception(self):
-        self.component.print_exception()
 
 # vi: sts=4 et sw=4

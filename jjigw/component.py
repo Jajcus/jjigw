@@ -21,6 +21,7 @@
 import signal
 import threading
 import string
+import logging
 
 import pyxmpp.jabberd
 from pyxmpp import Presence,Message,StreamError,FatalStreamError
@@ -36,6 +37,7 @@ class Component(pyxmpp.jabberd.Component):
         pyxmpp.jabberd.Component.__init__(self,config.jid,
                 config.connect.secret,config.connect.host,config.connect.port,
                 category="gateway",type="irc")
+        self.__logger=logging.getLogger("jjigw.Component")
         self.profile=profile
         self.shutdown=0
         signal.signal(signal.SIGINT,self.signal_handler)
@@ -55,20 +57,20 @@ class Component(pyxmpp.jabberd.Component):
     def register_session(self,sess):
         user_jid=sess.jid
         component_jid=sess.network.jid
-        self.debug("Registering session: %r on %r for %r" % (sess,component_jid,user_jid))
+        self.__logger.debug("Registering session: %r on %r for %r" % (sess,component_jid,user_jid))
         self.irc_sessions[user_jid.as_unicode(),component_jid.domain]=sess
 
     def unregister_session(self,sess):
         user_jid=sess.jid
         component_jid=sess.network.jid
-        self.debug("Unregistering session: %r on %r for %r" % (sess,component_jid,user_jid))
+        self.__logger.debug("Unregistering session: %r on %r for %r" % (sess,component_jid,user_jid))
         try:
             del self.irc_sessions[user_jid.as_unicode(),component_jid.domain]
         except KeyError:
-            self.debug("Session not found!")
+            self.__logger.debug("Session not found!")
 
     def signal_handler(self,signum,frame):
-        self.debug("Signal %i received, shutting down..." % (signum,))
+        self.__logger.debug("Signal %i received, shutting down..." % (signum,))
         self.shutdown=1
 
     def run(self,timeout):
@@ -81,7 +83,7 @@ class Component(pyxmpp.jabberd.Component):
                 except (KeyboardInterrupt,SystemExit,FatalStreamError,StreamError):
                     raise
                 except:
-                    self.print_exception()
+                    self.__logger.exception("Exception cought:")
         finally:
             if self.shutdown:
                 for sess in self.irc_sessions.values():
@@ -98,7 +100,7 @@ class Component(pyxmpp.jabberd.Component):
                 except:
                     pass
             self.disconnect()
-            self.debug("Exitting normally")
+            self.__logger.debug("Exitting normally")
 
     def send(self,stanza):
         self.get_stream().send(stanza)
@@ -122,12 +124,12 @@ class Component(pyxmpp.jabberd.Component):
         to=iq.get_to()
         fr=iq.get_from()
         if not to.node:
-            self.debug("admin request sent to JID without a node")
+            self.__logger.debug("admin request sent to JID without a node")
             iq=iq.make_error_response("feature-not-implemented")
             self.stream.send(iq)
             return 1
         if to.resource or not (to.node[0] in "#+!" or to.node.startswith(",amp,")):
-            self.debug("admin request sent not to a channel")
+            self.__logger.debug("admin request sent not to a channel")
             iq=iq.make_error_response("not-acceptable")
             self.stream.send(iq)
             return 1
@@ -135,28 +137,28 @@ class Component(pyxmpp.jabberd.Component):
         iq=MucIq(iq)
         sess=self.get_session(fr,to)
         if not sess:
-            self.debug("User session not found")
+            self.__logger.debug("User session not found")
             iq=iq.make_error_response("recipient-unavailable")
             self.stream.send(iq)
             return 1
 
         channel=sess.get_channel(to)
         if not channel:
-            self.debug("Channel not found")
+            self.__logger.debug("Channel not found")
             iq=iq.make_error_response("recipient-unavailable")
             self.stream.send(iq)
             return 1
 
         query=iq.get_muc_child()
         if not isinstance(query,MucAdminQuery):
-            self.debug("Bad query content")
+            self.__logger.debug("Bad query content")
             iq=iq.make_error_response("bad-request")
             self.stream.send(iq)
             return 1
 
         items=query.get_items()
         if not items:
-            self.debug("No items in query")
+            self.__logger.debug("No items in query")
             iq=iq.make_error_response("bad-request")
             self.stream.send(iq)
             return 1
@@ -170,7 +172,7 @@ class Component(pyxmpp.jabberd.Component):
         elif item.role=="moderator":
             channel.op_user(item.nick,iq)
         else:
-            self.debug("Unknown admin action")
+            self.__logger.debug("Unknown admin action")
             iq=iq.make_error_response("feature-not-implemented")
             self.stream.send(iq)
             return 1
@@ -258,13 +260,13 @@ class Component(pyxmpp.jabberd.Component):
     def groupchat_message(self,stanza):
         to=stanza.get_to()
         if not to.node:
-            self.debug("No node in groupchat message target")
+            self.__logger.debug("No node in groupchat message target")
             return 0
         if to.node[0] not in "#+!" and not to.node.startswith(",amp,"):
-            self.debug("Groupchat message target is not a channel")
+            self.__logger.debug("Groupchat message target is not a channel")
             return self.message(stanza)
         if to.resource:
-            self.debug("Groupchat message target is not bare JID")
+            self.__logger.debug("Groupchat message target is not bare JID")
             return 0
         fr=stanza.get_from()
         sess=self.get_session(fr,to)

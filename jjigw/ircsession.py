@@ -24,6 +24,7 @@ import md5
 import select
 import string
 import random
+import logging
 
 from pyxmpp import Message,Presence,JID
 from pyxmpp.jabber.muc import MucPresence
@@ -38,6 +39,7 @@ from common import channel_re,numeric_re
 class IRCSession:
     commands_dont_show=[]
     def __init__(self,component,config,netjid,jid,nick):
+        self.__logger=logging.getLogger("jjigw.IRCSession")
         self.component=component
         self.config=config
         self.network=config.get_network(netjid)
@@ -160,7 +162,7 @@ class IRCSession:
             self.thread_loop()
         except:
             clean_exit=0
-            self.print_exception()
+            self.__logger.exception("Exception cought:")
         self.lock.acquire()
         try:
             if not self.exited and self.socket:
@@ -189,7 +191,7 @@ class IRCSession:
         self.used_for=[]
 
     def thread_loop(self):
-        self.debug("thread_loop()")
+        self.__logger.debug("thread_loop()")
         while not self.exit and not self.component.shutdown:
             self.lock.acquire()
             try:
@@ -197,7 +199,7 @@ class IRCSession:
                     self._try_connect()
                 sock=self.socket
                 if sock is None:
-                    self.debug("sock is None")
+                    self.__logger.debug("sock is None")
                     continue
                 self.lock.release()
                 try:
@@ -240,7 +242,7 @@ class IRCSession:
 
     def _try_connect(self):
         if not self.servers_left:
-            self.debug("No servers left, quitting")
+            self.__logger.debug("No servers left, quitting")
             self.exit="No servers left, quitting"
             return
         if self.conninfo:
@@ -250,14 +252,14 @@ class IRCSession:
             self.socket.close()
             self.socket=None
         server=self.servers_left.pop(0)
-        self.debug("Trying to connect to %r" % (server,))
+        self.__logger.debug("Trying to connect to %r" % (server,))
         if self.raw_channel:
             self.pass_message_to_raw_channel("Connecting to %s:%s..." % (server.host,server.port))
         try:
             self.socket=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
             self.socket.connect((server.host,server.port))
         except (IOError,OSError,socket.error),err:
-            self.debug("Server connect error: %r" % (err,))
+            self.__logger.debug("Server connect error: %r" % (err,))
             if self.raw_channel:
                 self.pass_message_to_raw_channel("Connect error: %r" % (err,))
             if self.socket:
@@ -282,12 +284,12 @@ class IRCSession:
 
     def _send(self,str):
         if self.socket and not self.exited:
-            self.debug("IRC OUT: %r" % (str,))
+            self.__logger.debug("IRC OUT: %r" % (str,))
             self.socket.send(str+"\r\n")
             if self.raw_channel:
                 self.pass_output_to_raw_channel(str)
         else:
-            self.debug("ignoring out: %r" % (str,))
+            self.__logger.debug("ignoring out: %r" % (str,))
 
     def send(self,str):
         self.lock.acquire()
@@ -300,10 +302,10 @@ class IRCSession:
         try:
             self._process_input(input)
         except:
-            self.print_exception()
+            self.__logger.exception("Exception cought:")
 
     def _process_input(self,input):
-        self.debug("Server message: %r" % (input,))
+        self.__logger.debug("Server message: %r" % (input,))
         split=input.split(" ")
         if split[0].startswith(":"):
             prefix=split[0][1:]
@@ -362,11 +364,11 @@ class IRCSession:
 
     def irc_message(self,prefix,command,params):
         if len(params)<2 or not prefix:
-            self.debug("ignoring it")
+            self.__logger.debug("ignoring it")
             return
         user=self.get_user(prefix)
         if not user:
-            self.debug("could not convert %r to IRCUser object" % (prefix,))
+            self.__logger.debug("could not convert %r to IRCUser object" % (prefix,))
             return
         if user.current_thread:
             typ,thread,fr=user.current_thread
@@ -407,7 +409,7 @@ class IRCSession:
     def irc_cmd_001(self,prefix,command,params): # RPL_WELCOME
         self.lock.acquire()
         try:
-            self.debug("Connected successfully")
+            self.__logger.debug("Connected successfully")
             self.ready=1
             for s in self.login_requests:
                 self.login(s)
@@ -471,13 +473,13 @@ class IRCSession:
         self.unregister_user(user)
 
     def irc_cmd_352(self,prefix,command,params): # RPL_WHOREPLY
-        self.debug("WHO reply received")
+        self.__logger.debug("WHO reply received")
         if len(params)<7:
-            self.debug("too short - ignoring")
+            self.__logger.debug("too short - ignoring")
             return
         user=self.get_user(params[4])
         if not user:
-            self.debug("User: %r not found" % (params[4],))
+            self.__logger.debug("User: %r not found" % (params[4],))
         else:
             user.whoreply(params)
 
@@ -597,7 +599,7 @@ class IRCSession:
     def logout(self,stanza,send_response=1):
         to=stanza.get_to()
         if to not in self.used_for:
-            self.debug("Unavailable presence sent with no matching available presence, ignoring it")
+            self.__logger.debug("Unavailable presence sent with no matching available presence, ignoring it")
             return 0
         try:
             self.used_for.remove(to)
@@ -637,10 +639,10 @@ class IRCSession:
         try:
             channel_name=node_to_channel(channel_name,self.default_encoding)
         except ValueError:
-            self.debug("Bad channel name: %r" % (channel_name,))
+            self.__logger.debug("Bad channel name: %r" % (channel_name,))
             return None
         if not channel_re.match(channel_name):
-            self.debug("Bad channel name: %r" % (channel_name,))
+            self.__logger.debug("Bad channel name: %r" % (channel_name,))
             return None
         return self.channels.get(normalize(channel_name))
 
@@ -714,11 +716,5 @@ class IRCSession:
         self.send("QUIT :%s" % (reason.encode(self.default_encoding,"replace"),))
         self.exit=reason
         self.exited=1
-
-    def debug(self,msg):
-        self.component.debug(msg)
-
-    def print_exception(self):
-        self.component.print_exception()
 
 # vi: sts=4 et sw=4

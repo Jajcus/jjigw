@@ -18,6 +18,7 @@
 #  59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 import string
+import logging
 
 from pyxmpp import Message,JID
 from pyxmpp.jabber.muc import MucPresence,MucItem,MucStatus
@@ -32,6 +33,7 @@ class Channel:
     arg_modes="kl"
     multiarg_modes="OovbeI"
     def __init__(self,session,name):
+        self.__logger=logging.getLogger("jjigw.Channel")
         if not channel_re.match(name):
             raise ValueError,"Bad channel name"
         self.name=name
@@ -73,12 +75,12 @@ class Channel:
 
     def join(self,stanza):
         if self.state:
-            self.debug("Channel %r not in the initial state, not joining!" % (self.name,))
+            self.__logger.debug("Channel %r not in the initial state, not joining!" % (self.name,))
             p=stanza.make_error_response(stanza,"bad-request")
             self.session.component.send(p)
             return
         self.room_jid=stanza.get_to()
-        self.debug("Joining channel %r" % (self.name,))
+        self.__logger.debug("Joining channel %r" % (self.name,))
         self.session.send("JOIN %s" % (self.name,))
         self.requests.add("JOIN",stanza)
         self.state="join"
@@ -88,7 +90,7 @@ class Channel:
     def leave(self,stanza):
         status=stanza.get_status()
         if not self.state:
-            self.debug("Channel %r in the initial state - nothing to do." % (self.name,))
+            self.__logger.debug("Channel %r in the initial state - nothing to do." % (self.name,))
         else:
             if not status:
                 self.session.send("PART %s" % (self.name,))
@@ -142,7 +144,7 @@ class Channel:
         return p
 
     def nick_changed(self,oldnick,user):
-        self.debug("Nick changed: %r -> %r" % (oldnick,user.nick))
+        self.__logger.debug("Nick changed: %r -> %r" % (oldnick,user.nick))
         p_unaval=self.get_user_presence(user,nick=user.nick,status=303)
         p_unaval.set_type("unavailable")
         p_unaval.set_show(None)
@@ -242,7 +244,7 @@ class Channel:
 
     def irc_cmd_MODE(self,prefix,command,params):
         if len(params)<2:
-            self.debug("No parameters in received MODE")
+            self.__logger.debug("No parameters in received MODE")
             return
         params_str=string.join(params[2:]," ").strip()
         if params_str:
@@ -275,17 +277,17 @@ class Channel:
                 pm=m
                 continue
             elif not pm:
-                self.debug("Not '+' or '-' before '%s' in received MODE" % (m,))
+                self.__logger.debug("Not '+' or '-' before '%s' in received MODE" % (m,))
                 continue
             elif m in self.arg_modes or m in self.multiarg_modes:
                 if not len(params):
-                    self.debug("No argument for mode '%s' in received MODE" % (m,))
+                    self.__logger.debug("No argument for mode '%s' in received MODE" % (m,))
                     continue
                 arg=params.pop(0)
             elif m in self.toggle_modes:
                 arg=None
             else:
-                self.debug("Unknown mode '%s' in received MODE" % (m,))
+                self.__logger.debug("Unknown mode '%s' in received MODE" % (m,))
                 continue
             if m in "oOv":
                 arg=self.session.get_user(arg)
@@ -306,7 +308,7 @@ class Channel:
             actor_jid=self.nick_to_jid(actor.nick)
         else:
             actor_jid=None
-        self.debug("Mode changed: %r by %r" % (user.nick,actor_jid))
+        self.__logger.debug("Mode changed: %r by %r" % (user.nick,actor_jid))
         p=self.get_user_presence(user,actor_jid)
         if actor:
             by=u" by %s" % (unicode(actor.nick,self.encoding,"replace"),)
@@ -328,7 +330,7 @@ class Channel:
         nnick=normalize(self.session.nick)
         if nprefix==nnick or nprefix.startswith(nnick+"!"):
             if self.state=="join":
-                self.debug("Channel %r joined!" % (self.name,))
+                self.__logger.debug("Channel %r joined!" % (self.name,))
                 self.session.user.sync_delay+=1
                 try:
                     self.session.user.join_channel(self)
@@ -386,7 +388,7 @@ class Channel:
 
     def irc_message(self,prefix,command,params):
         if not self.state or len(params)<2:
-            self.debug("ignoring it")
+            self.__logger.debug("ignoring it")
             return
         body=unicode(params[1],self.encoding,"replace")
         if body[0]=="\001" and body[-1]=="\001":
@@ -406,7 +408,7 @@ class Channel:
                     body="/me "+remove_evil_characters(strip_colors(arg)))
             self.session.component.send(m)
         else:
-            self.debug("Unknown CTCP command: %r %r" % (command,arg))
+            self.__logger.debug("Unknown CTCP command: %r %r" % (command,arg))
 
     def change_topic(self,topic,stanza):
         topic=topic.encode(self.encoding,"replace")
@@ -477,8 +479,5 @@ class Channel:
 
     def __repr__(self):
         return "<IRCChannel %r>" % (self.name,)
-
-    def debug(self,msg):
-        return self.session.debug(msg)
 
 # vi: sts=4 et sw=4

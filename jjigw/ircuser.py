@@ -17,6 +17,7 @@
 #  with this program; if not, write to the Free Software Foundation, Inc.,
 #  59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
+import logging
 
 from pyxmpp import JID
 
@@ -24,6 +25,7 @@ from common import normalize,nick_to_node
 
 class IRCUser:
     def __init__(self,session,nick,user="",host=""):
+        self.__logger=logging.getLogger("jjigw.IRCUser")
         self.sync_delay=0
         self.session=session
         if "!" in nick:
@@ -50,7 +52,7 @@ class IRCUser:
         if self.sync_delay>0:
             return
         elif self.sync_delay<0:
-            self.debug("Warning: %r.sync_delay<0" % (self,))
+            self.__logger.debug("Warning: %r.sync_delay<0" % (self,))
         return channel.sync_user(self,status=status)
 
     def join_channel(self,channel):
@@ -82,7 +84,7 @@ class IRCUser:
         if channel and channel!="*":
             channel=self.session.channels.get(normalize(channel))
             if not channel:
-                self.debug("Ignoring WHO reply: %r - unknown channel" % (params,))
+                self.__logger.debug("Ignoring WHO reply: %r - unknown channel" % (params,))
                 return
         else:
             channel=None
@@ -119,8 +121,5 @@ class IRCUser:
 
     def __repr__(self):
         return "<IRCUser %r: %r>" % (id(self),self.nick)
-
-    def debug(self,msg):
-        return self.session.debug(msg)
 
 # vi: sts=4 et sw=4

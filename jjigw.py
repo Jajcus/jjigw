@@ -17,17 +17,21 @@
 #  with this program; if not, write to the Free Software Foundation, Inc.,
 #  59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
+import sys
+import os.path
+import logging
 
 from jjigw.common import JJIGWFatalError
 from jjigw.config import Config
 from jjigw.component import Component
-import sys
-import os.path
 
 def main(profile=False):
     config_dir,data_dir=".","."
 
     try:
+        logger=logging.getLogger()
+        logger.addHandler(logging.StreamHandler())
+        logger.setLevel(logging.DEBUG)
         try:
             config=Config(config_dir,data_dir)
         except:
