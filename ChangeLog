@@ -1,3 +1,8 @@
+2004-08-30  Jacek Konieczny  <jajcus@bnet.pl>
+
+	* jjigw/channel.py, jjigw/component.py, jjigw/ircsession.py, jjigw/ircuser.py, jjigw/spidentd.py, jjigw.py:
+	- debug messages switched to 'logging' module
+
 2004-07-30  Jacek Konieczny  <jajcus@bnet.pl>
 
 	* Makefile: *** Version: 0.2.1 ***
