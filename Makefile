@@ -47,7 +47,12 @@ catalog.xml.inst: catalog.xml
 		catalog.xml > catalog.xml.inst
 
 ChangeLog: 
-	TZ=UTC svn log -v --xml | svn2log.py -p '/(branches/[^/]+|trunk)' -x ChangeLog -u aux/users
+	test -f .svn/entries && make cl-stamp || :
+	
+cl-stamp: .svn/entries
+	TZ=UTC svn log -v --xml \
+		| aux/svn2log.py -p '/(branches/[^/]+|trunk)' -x ChangeLog -u aux/users
+	touch cl-stamp
 
 cosmetics:
 	./aux/cosmetics.sh
