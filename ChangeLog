@@ -1,5 +1,11 @@
 2004-07-21  Jacek Konieczny  <jajcus@bnet.pl>
 
+	* Makefile:
+	- jjigw.py.inst generation fixed (declarations are now indented)
+
+	* spidentd.py:
+	- s/getpwname/getpwnam/
+
 	* jjigw/ircsession.py:
 	- ignore socket errors when disconnecting
 
