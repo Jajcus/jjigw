@@ -12,6 +12,7 @@ import string
 
 from pyxmpp import ClientStream,JID,Iq,Presence,Message,StreamError
 import pyxmpp.jabberd
+from pyxmpp.jabber.muc import MucPresence,MucX,MucUserX,MucItem,MUC_NS
 
 class ConnectConfig:
     def __init__(self,node):
@@ -171,6 +172,11 @@ class IRCUser:
 	    self.mode["a"]=0
 	if channel:
 	    channel.sync_user(self)
+
+    def jid(self):
+	return JID(nick_to_node(self.nick,self.session.default_encoding),
+		self.session.network.jid.domain,
+		unicode(self.user+'@'+self.host,self.session.default_encoding,"replace"))
 	
     def debug(self,msg):
 	return self.session.debug(msg)
@@ -222,6 +228,8 @@ class Channel:
 	self.session.send("JOIN %s" % (self.name,))
 	self.stanza=stanza.copy()
 	self.state="join"
+	if stanza.get_join_info():
+	    self.muc=1
 
     def leave(self,stanza):
 	status=stanza.get_status()
@@ -235,7 +243,7 @@ class Channel:
 			status.encode(self.encoding,"replace")))
 	    self.state=None
 	    self.stanza=None
-	p=Presence(type="unavailable",fr=stanza.get_to(),to=stanza.get_from(),status=status)
+	p=MucPresence(type="unavailable",fr=stanza.get_to(),to=stanza.get_from(),status=status)
 	self.session.component.send(p)
 	for u in self.users:
 	    u.leave_room(self)
@@ -252,9 +260,13 @@ class Channel:
 
     def get_user_presence(self,user):
 	if self.state and user in self.users:
-	    p=Presence(fr=self.nick_to_jid(user.nick),to=self.session.jid)
+	    p=MucPresence(fr=self.nick_to_jid(user.nick),to=self.session.jid)
 	else:
-	    p=Presence(type="unavailable",fr=self.nick_to_jid(user.nick),to=self.session.jid)
+	    p=MucPresence(type="unavailable",fr=self.nick_to_jid(user.nick),to=self.session.jid)
+	if self.muc:
+	    ui=p.make_muc_userinfo()
+	    it=MucItem("none","participant",user.jid(),unicode(user.nick,self.encoding,"replace"))
+	    ui.add_item(it)
 	return p
 
     def nick_changed(self,oldnick,user):
@@ -301,9 +313,7 @@ class Channel:
 	if nprefix==nnick or nprefix.startswith(nnick+"!"):
 	    if self.state=="join":
 		self.debug("Channel %r joined!" % (self.name,))
-		p=Presence(type="available",fr=self.stanza.get_to(),
-			to=self.stanza.get_from())
-		self.session.component.send(p)
+		self.session.user.join_channel(self)
 		self.state="joined"
 		self.stanza=None
 		self.session.send("WHO %s" % (self.name,))
@@ -380,6 +390,7 @@ class IRCSession:
 	self.ready=0
 	self.channels={}
 	self.users={}
+	self.user=IRCUser(self,nick)
 
     def register_user(self,user):
 	self.lock.acquire()
@@ -680,6 +691,7 @@ class Component(pyxmpp.jabberd.Component):
 	self.stream.set_iq_set_handler("query","jabber:iq:register",self.set_register)
 	self.disco_info.add_feature("jabber:iq:version")
 	self.disco_info.add_feature("jabber:iq:register")
+	self.disco_info.add_feature(MUC_NS)
 	self.stream.set_presence_handler("available",self.presence_available)
 	self.stream.set_presence_handler("unavailable",self.presence_unavailable)
 	self.stream.set_presence_handler("subscribe",self.presence_control)
@@ -787,7 +799,7 @@ class Component(pyxmpp.jabberd.Component):
 	    sess.used_for.append(to)
 	    self.irc_sessions[fr.as_unicode()]=sess
 	if to.node:
-	    sess.join(stanza)
+	    sess.join(MucPresence(stanza))
 	else:
 	    p=Presence(
 		to=stanza.get_from(),
