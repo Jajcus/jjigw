@@ -202,10 +202,19 @@ class IRCSession:
                 finally:
                     self.lock.acquire()
                 if self.socket in id:
-                    self.input_buffer+=self.socket.recv(1024)
-                    while self.input_buffer.find("\r\n")>-1:
-                        input,self.input_buffer=self.input_buffer.split("\r\n",1)
-                        self._safe_process_input(input)
+                    r=self.socket.recv(1024)
+                    if r:
+                        self.input_buffer+=r
+                        while self.input_buffer.find("\r\n")>-1:
+                            input,self.input_buffer=self.input_buffer.split("\r\n",1)
+                            self._safe_process_input(input)
+                    else:
+                        try:
+                            self.socket.close()
+                        except:
+                            pass
+                        self.socket=None
+                        self.exited=1
                 elif self.socket in ed:
                     try:
                         self.socket.close()
