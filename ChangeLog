@@ -1,5 +1,16 @@
 2004-07-21  Jacek Konieczny  <jajcus@bnet.pl>
 
+	* Makefile: *** Version: 0.2 ***
+
+	* jjigw/ircsession.py:
+	- cosmetics
+
+	* TODO:
+	- updated
+
+	* INSTALL:
+	- updates
+
 	* jjigw/ircsession.py:
 	- make copy of login/message/etc request stanzas when putting them to a queue
 
