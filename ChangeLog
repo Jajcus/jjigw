@@ -1,5 +1,14 @@
 2004-02-07  Jacek Konieczny  <jajcus@bnet.pl>
 
+	* jjigw.dtd:
+	- channel encoding is jjigw.pyIMPLIED
+
+	* jjigw.py:
+	- jjit changed to jjigw
+
+	* jjigw.xml.example:
+	- one more jjit changed to jjigw
+
 	* jjigw.py:
 	- configuration file validation
 
