@@ -18,21 +18,41 @@
 #  59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
-from jjigw.common import JJIGWFatalError
-from jjigw.config import Config
-from jjigw.component import Component
+from types import StringType,UnicodeType
 
-try:
-    config=Config("jjigw.xml")
+class Request:
+    def __init__(self,command,stanza,args=None):
+	self.command=command
+	self.stanza=stanza
+	self.args=args
+    def match(self,commands,args=None):
+	if type(commands) in (StringType,UnicodeType):
+	    commands=[commands]
+	for c in commands:
+	    if not self.command==c:
+		continue
+	    if args and not self.args==args:
+		continue
+	    return 1
+	return 0
 
-    print "creating component..."
-    c=Component(config)
-
-    print "starting..."
-    c.run(1)
-except JJIGWFatalError,e:
-    print e
-    print "Aborting."
-    sys.exit(1)
+class RequestQueue:
+    def __init__(self,maxsize):
+	self.maxsize=maxsize
+	self.requests=[]
+    def get(self,commands,args=None):
+	for r in self.requests:
+	    if r.match(commands):
+		try:
+		    self.requests.remove(r)
+		except ValueError:
+		    pass
+		return r
+	return None
+    def add(self,command,stanza,args=None):
+	r=Request(command,stanza,args)
+	self.requests.append(r)
+	if len(self.requests)>10:
+	    self.requests=self.requests[-10:]
 
 # vi: sw=4 ts=8 sts=4

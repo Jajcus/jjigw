@@ -12,6 +12,7 @@
 <!ELEMENT network 	(server+,channel*) >
 <!ATTLIST network 
 	jid 		CDATA		#REQUIRED
+	name		CDATA		#IMPLIED
 	encoding 	CDATA		"us-ascii"
 	nicks_8bit	(yes|no)	"no">
 <!ELEMENT server 	(#PCDATA) >
