@@ -146,7 +146,7 @@ class IRCSession:
             node=nick_to_node(nick,self.default_encoding)
             resource=unicode(user,self.default_encoding,"replace")
             return JID(node,self.network.jid.domain,resource)
-        
+
     def thread_run_prof(self):
         import profile
         p=profile.Profile()
