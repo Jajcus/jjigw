@@ -1,3 +1,8 @@
+2004-06-01  Jacek Konieczny  <jajcus@bnet.pl>
+
+	* jjigw.py:
+	- profile option handling fixed again
+
 2004-05-30  Jacek Konieczny  <jajcus@bnet.pl>
 
 	* jjigw.py, jjigw/component.py, jjigw/ircsession.py:
