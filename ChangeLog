@@ -1,5 +1,17 @@
 2004-07-23  Jacek Konieczny  <jajcus@bnet.pl>
 
+	* jjigw/ircsession.py:
+	- encode quit reason in network encoding
+
+	* jjigw/component.py:
+	- more failproof exception handling
+
+	* jjigw/ircsession.py:
+	- show warning instead dumping an exception on bad channel name in IRCSession.get_channel()
+
+	* jjigw/ircsession.py:
+	- return error instead of dumping exception on message to a wrong JID
+
 	* jjigw/component.py:
 	- missing Message import
 
