@@ -179,7 +179,10 @@ class IRCUser:
 	return JID(nick_to_node(self.nick,self.session.default_encoding),
 		self.session.network.jid.domain,
 		unicode(self.user+'@'+self.host,self.session.default_encoding,"replace"))
-	
+
+    def __repr__(self):
+	return "<IRCUser %r>" % (self.nick,)
+
     def debug(self,msg):
 	return self.session.debug(msg)
 
@@ -205,6 +208,10 @@ class Channel:
 	    if user not in self.users:
 		self.users.append(user)
 	else:
+	    for m in self.multiarg_modes:
+		ul=self.modes.get(m,[])
+		if user in ul:
+		    ul.remove(user)
 	    if user in self.users:
 		self.users.remove(user)
 		self.send_notice_message(u"%s has quit" 
@@ -260,24 +267,39 @@ class Channel:
 	return JID(self.room_jid.node,self.room_jid.domain,
 		unicode(nick,self.encoding,"replace"))
 
-    def get_user_presence(self,user):
+    def get_user_presence(self,user,nick=None,actor=None,reason=None,status=None):
 	if self.state and user in self.users:
 	    p=MucPresence(fr=self.nick_to_jid(user.nick),to=self.session.jid)
 	else:
 	    p=MucPresence(type="unavailable",fr=self.nick_to_jid(user.nick),to=self.session.jid)
+	self.debug("%r modes: %r" % (self.name,self.modes))
 	if self.muc:
-	    ui=p.make_muc_userinfo()
-	    it=MucItem("none","participant",user.jid(),unicode(user.nick,self.encoding,"replace"))
+	    if user in self.modes.get("o",[]):
+		aff="admin"
+		role="moderator"
+	    elif user in self.modes.get("v",[]):
+		aff="member"
+		role="participant"
+	    elif self.modes.get("m"):
+		aff="none"
+		role="visitor"
+	    else:
+		aff="none"
+		role="participant"
+	    ui=p.make_muc_userinfo(status=status)
+	    if nick:
+		nick=unicode(user.nick,self.encoding,"replace")
+	    it=MucItem(aff,role,user.jid(),nick=nick,actor=actor,reason=reason)
 	    ui.add_item(it)
 	return p
 
     def nick_changed(self,oldnick,user):
-	p_aval=self.get_user_presence(user)
-	p_unaval=p_aval.copy()
+	p_unaval=self.get_user_presence(user,nick=user.nick,status=303)
 	p_unaval.set_type("unavailable")
 	p_unaval.set_show(None)
 	p_unaval.set_status(None)
 	p_unaval.set_from(self.nick_to_jid(oldnick))
+	p_aval=self.get_user_presence(user,status=303)
 	self.session.component.send(p_unaval)
 	self.session.component.send(p_aval)
 	self.send_notice_message(u"%s is now known as %s" 
@@ -309,6 +331,77 @@ class Channel:
 	except (KeyError,ValueError):
 	    pass
 
+    def irc_cmd_324(self,prefix,command,params):
+	for m in self.toggle_modes:
+	    try:
+		del self.modes[m]
+	    except KeyError:
+		pass
+	self.irc_cmd_MODE(prefix,command,params)
+	
+    def irc_cmd_MODE(self,prefix,command,params):
+	self.debug("irc_cmd_mode(%r,%r,%r)" % (prefix,command,params))
+	actor=self.session.get_user(prefix)
+	self.debug("irc_cmd_mode: actor=%r" % (actor,))
+	if len(params)<2:
+	    self.debug("No parameters in received MODE")
+	    return
+	modes=params[1]
+	params=params[2:]
+	pm=None
+	for m in modes:
+	    if m in "+-":
+		pm=m
+		continue
+	    elif not pm:
+		self.debug("Not '+' or '-' before '%s' in received MODE" % (m,))
+		continue
+	    elif m in self.arg_modes or m in self.multiarg_modes:
+		if not len(params):
+		    self.debug("No argument for mode '%s' in received MODE" % (m,))
+		    continue
+		arg=params.pop(0)
+	    elif m in self.toggle_modes:
+		arg=None
+	    else:
+		self.debug("Unknown mode '%s' in received MODE" % (m,))
+		continue
+	    if m in "oOv":
+		arg=self.session.get_user(arg)
+		if not arg:
+		    continue
+	    if pm=="+":
+		self.set_mode(m,arg)
+	    else:
+		self.reset_mode(m,arg)
+	    if m in "oOv":
+		self.user_mode_changed(arg,actor,m)
+	    elif m=="m":
+		for u in self.users:
+		    self.sync_user(u)
+
+    def user_mode_changed(self,user,actor,mode):
+	self.debug("user_mode_changed(%r,%r,%r)" % (user,actor,mode))
+	if actor:
+	    actor_jid=self.nick_to_jid(actor.nick)
+	else:
+	    actor_jid=None
+	p=self.get_user_presence(user,actor_jid)
+	if actor:
+	    by=u" by %s" % (unicode(actor.nick,self.encoding,"replace"),)
+	else:
+	    by=u""
+	self.session.component.send(p)
+	if mode=="v":
+	    self.send_notice_message(u"%s was granted voice%s" 
+		    % (unicode(user.nick,self.encoding,"replace"),by))
+	elif mode=="o":
+	    self.send_notice_message(u"%s was granted operator status%s" 
+		    % (unicode(user.nick,self.encoding,"replace"),by))
+	elif mode=="O":
+	    self.send_notice_message(u"%s was granted got owner status%s" 
+		    % (unicode(user.nick,self.encoding,"replace"),by))
+
     def irc_cmd_JOIN(self,prefix,command,params):
 	nprefix=normalize(prefix)
 	nnick=normalize(self.session.nick)
@@ -318,6 +411,7 @@ class Channel:
 		self.session.user.join_channel(self)
 		self.state="joined"
 		self.stanza=None
+		self.session.send("MODE %s" % (self.name,))
 		self.session.send("WHO %s" % (self.name,))
 	else:
 	    user=self.session.get_user(prefix)
@@ -361,6 +455,9 @@ class Channel:
 	else:
 	    self.debug("Unknown CTCP command: %r %r" % (command,arg))
 	    
+    def __repr__(self):
+	return "<IRCChannel %r>" % (self.name,)
+
     def debug(self,msg):
 	return self.session.debug(msg)
 
@@ -427,6 +524,8 @@ class IRCSession:
 	    nick=prefix.split("!",1)[0]
 	else:
 	    nick=prefix
+	if not nick_re.match(nick):
+	    return None
 	nnick=normalize(nick)
 	if self.users.has_key(nnick):
 	    return self.users[nnick]
