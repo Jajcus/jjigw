@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='utf-8'?>
+<jjit>
+
+<connect>
+	<host>127.0.0.1</host>
+	<port>5347</port>
+	<secret>topsecret</secret>
+</connect>
+
+<network jid="ircnet.localhost">
+	<server>warszawa.irc.pl</server>
+	<server>lublin.irc.pl</server>
+	<server>poznan.irc.pl</server>
+</network>
+
+</jjit>
