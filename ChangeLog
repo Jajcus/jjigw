@@ -1,3 +1,8 @@
+2004-06-29  Jacek Konieczny  <jajcus@bnet.pl>
+
+	* jjigw/ircsession.py:
+	- 'private' messages fixed
+
 2004-06-26  Jacek Konieczny  <jajcus@bnet.pl>
 
 	* jjigw/ircsession.py:
