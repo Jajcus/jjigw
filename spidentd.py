@@ -172,7 +172,7 @@ class SocketDriver(Driver):
                         elif group is not None:
                                 gid=grp.getgrnam(group)[2]
                         elif user is not None:
-                                gid=pwd.getpwname(user)[3]
+                                gid=pwd.getpwnam(user)[3]
                         if gid:
                                 os.chown(path,0,gid)
                 self.socket.listen(1)
