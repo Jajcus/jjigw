@@ -12,6 +12,7 @@ import errno
 import pwd
 import grp
 import getopt
+import re
 
 class Driver:
 	def __init__(self):
@@ -73,23 +74,83 @@ class RealDriver(Driver):
 		return None	
 
 class SocketDriverClient:
-	def __init_(self,driver,sock):
+	add_re=re.compile(r"add (\d+\.\d+\.\d+\.\d+):(\d+) (\d+\.\d+\.\d+\.\d+):(\d+) (.*)")
+	remove_re=re.compile(r"remove (\d+\.\d+\.\d+\.\d+):(\d+) (\d+\.\d+\.\d+\.\d+):(\d+)")
+	def __init__(self,driver,sock):
 		self.socket=sock
+		self.driver=driver
 		self.thread=threading.Thread(target=self.run_thread)
 		self.thread.setDaemon(1)
 		self.conn_users={}
-		self.thread.run()
+		self.buf=""
+		self.thread.start()
+
+	def run_thread(self):
+		try:
+			self._run_thread()
+		finally:
+			self.conn_users={}
+			try:
+				self.driver.clients.remove(self)
+			except ValueError:
+				pass
+			try:
+				self.sock.close()
+			except:
+				pass
+				
+	def _run_thread(self):
+		global exit
+		while not exit:
+			l=self.read_line()
+			if not l:
+				break
+			print >>sys.stderr,"Got %r on programming socket" % (l,)
+			m=self.add_re.match(l)
+			if m:
+				localip,localport,remoteip,remoteport,user=m.groups()
+				self.conn_users[(int(localport),localip,
+						int(remoteport),remoteip)]=user
+				continue
+			m=self.remove_re.match(l)
+			if m:
+				localip,localport,remoteip,remoteport=m.groups()
+				try:
+					del self.conn_users[(int(localport),localip,
+							int(remoteport),remoteip)]
+				except KeyError:
+					pass
+				continue
+			print >>sys.stderr,"Bad protocol on programming socket"
+			
+	def read_line(self):
+		while 1:
+			if "\n" in self.buf:
+				line,self.buf=self.buf.split("\n",1)
+				return line
+			if len(self.buf)>1024:
+				print >>sys.stderr,"Input line too long"
+				return None
+			r=self.socket.recv(1024)
+			if not r:
+				return None
+			self.buf+=r
+	
 
 class SocketDriver(Driver):
 	def __init__(self,path):
 		self.socket=socket.socket(socket.AF_UNIX)
+		try:
+			os.unlink(path)
+		except:
+			pass
 		self.socket.bind(path)
 		self.socket.listen(1)
 		self.clients=[]
 		register_listening_socket(self.socket,self.accept_connection)
 	def lookup(self,localport,localip,remoteport,remoteip):
 		for c in self.clients:
-			connuser=c.conn_users.get[(localport,localip,remoteport,remoteip)]
+			connuser=c.conn_users.get((localport,localip,remoteport,remoteip))
 			if connuser:
 				return connuser
 		return None
@@ -123,7 +184,7 @@ def input_thread(sock,addr):
 			print >>sys.stderr,"Query too long"
 			sock.close()
 			return
-		if buf.find("\r\n"):
+		if buf.find("\r\n")>=0:
 			break
 	query=buf.split("\r",1)[0]
 	print >>sys.stderr,"Query: %r" % (query,)
@@ -244,7 +305,10 @@ if args:
 	sys.exit(2)
 
 sock=socket.socket()
-sock.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
+try:
+	sock.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
+except:
+	pass
 sock.bind((ip,port))
 
 if os.getuid()==0:
