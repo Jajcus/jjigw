@@ -1,3 +1,19 @@
+2004-09-18  Jacek Konieczny  <jajcus@bnet.pl>
+
+	* jjigw/config.py, jjigw/ircsession.py, jjigw.dtd:
+	- fixed support for multiple servers (round-robin and failover)
+	- allow binding to a configured address and port before connecting to a server
+	(both improvements by Petr Mensik)
+
+	* jjigw/component.py:
+	- simple channel browsing (only for channels listed in config file, patch by Petr Mensik)
+
+	* jjigw/common.py:
+	- support for long nicknames fixed (patch by Petr Mensik)
+
+	* jjigw/channel.py, jjigw/component.py, jjigw/ircsession.py:
+	- updated for recent PyXMPP changes (stanza constructors keyword arguments name changes)
+
 2004-08-30  Jacek Konieczny  <jajcus@bnet.pl>
 
 	* jjigw/channel.py, jjigw/component.py, jjigw/ircsession.py, jjigw/ircuser.py, jjigw/spidentd.py, jjigw.py:
