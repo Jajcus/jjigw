@@ -36,7 +36,7 @@ class Component(pyxmpp.jabberd.Component):
     def __init__(self,config,profile=False):
         pyxmpp.jabberd.Component.__init__(self,config.jid,
                 config.connect.secret,config.connect.host,config.connect.port,
-                category="gateway",type="irc")
+                disco_category="gateway",disco_type="irc")
         self.__logger=logging.getLogger("jjigw.Component")
         self.profile=profile
         self.shutdown=0
