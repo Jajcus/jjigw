@@ -24,23 +24,31 @@ from jjigw.component import Component
 import sys
 import os.path
 
-config_dir,data_dir=".","."
+def main(profile=False):
+    config_dir,data_dir=".","."
 
-try:
     try:
-        config=Config(config_dir,data_dir)
-    except:
-        print >>sys.stderr,"Couldn't load config file:",str(sys.exc_value)
+        try:
+            config=Config(config_dir,data_dir)
+        except:
+            print >>sys.stderr,"Couldn't load config file:",str(sys.exc_value)
+            sys.exit(1)
+
+        print "creating component..."
+        c=Component(config,profile=profile)
+
+        print "starting..."
+        c.run(1)
+    except JJIGWFatalError,e:
+        print e
+        print "Aborting."
         sys.exit(1)
 
-    print "creating component..."
-    c=Component(config)
-
-    print "starting..."
-    c.run(1)
-except JJIGWFatalError,e:
-    print e
-    print "Aborting."
-    sys.exit(1)
+if sys.argv[1]=='--profile':
+    import profile
+    sys.argv[1:]=sys.argv[2:]
+    profile.run("main(profile=True)","jjigw.prof")
+else:
+    main()
 
 # vi: sts=4 et sw=4

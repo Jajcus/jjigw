@@ -48,8 +48,12 @@ class IRCSession:
             raise ValueError,"Bad nickname"
         self.jid=jid
         self.nick=nick
+        if self.component.profile:
+            ttarget=self.thread_run_prof
+        else:
+            ttarget=self.thread_run
         self.thread=threading.Thread(name=u"%s on %s as %s" % (jid,self.network.jid,nick),
-                target=self.thread_run)
+                target=ttarget)
         self.thread.setDaemon(1)
         self.exit=None
         self.exited=0
@@ -146,6 +150,13 @@ class IRCSession:
             node=nick_to_node(nick,self.default_encoding)
             resource=unicode(user,self.default_encoding,"replace")
             return JID(node,self.network.jid.domain,resource)
+        
+    def thread_run_prof(self):
+        import profile
+        p=profile.Profile()
+        p.runcall(self.thread_run)
+        p.create_stats()
+        p.dump_stats("jjigw-%s.prof" % (threading.currentThread().getName().replace("/","_"),))
 
     def thread_run(self):
         clean_exit=1
@@ -187,6 +198,7 @@ class IRCSession:
                     self._try_connect()
                 sock=self.socket
                 if sock is None:
+                    self.debug("sock is None")
                     continue
                 self.lock.release()
                 try:
@@ -198,6 +210,13 @@ class IRCSession:
                     while self.input_buffer.find("\r\n")>-1:
                         input,self.input_buffer=self.input_buffer.split("\r\n",1)
                         self._safe_process_input(input)
+                elif self.socket in ed:
+                    try:
+                        self.socket.close()
+                    except:
+                        pass
+                    self.socket=None
+                    self.exited=1
             finally:
                 self.lock.release()
         self.lock.acquire()

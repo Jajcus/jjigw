@@ -32,10 +32,11 @@ from ircsession import IRCSession
 from spidentd import SPIdentD
 
 class Component(pyxmpp.jabberd.Component):
-    def __init__(self,config):
+    def __init__(self,config,profile=False):
         pyxmpp.jabberd.Component.__init__(self,config.jid,
                 config.connect.secret,config.connect.host,config.connect.port,
                 category="gateway",type="irc")
+        self.profile=profile
         self.shutdown=0
         signal.signal(signal.SIGINT,self.signal_handler)
         signal.signal(signal.SIGPIPE,self.signal_handler)
