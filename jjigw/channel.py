@@ -210,6 +210,7 @@ class Channel:
 
     def irc_cmd_477(self,prefix,command,params): # ERR_NOCHANMODES
         # this often is not an error
+        pass
         #self.irc_error_response(prefix,command,params,["TOPIC","MODE"],"not-acceptable")
 
     def irc_error_response(self,prefix,command,params,requests,condition):
