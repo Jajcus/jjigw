@@ -19,51 +19,6 @@ from pyxmpp.jabber.muc import MucPresence,MucX,MucUserX,MucItem,MUC_NS
 class JJIGWFatalError(RuntimeError):
     pass
 
-class ConnectConfig:
-    def __init__(self,node):
-	self.node=node
-	self.host=node.xpathEval("host")[0].getContent()
-	self.port=int(node.xpathEval("port")[0].getContent())
-	self.secret=node.xpathEval("secret")[0].getContent()
-
-class NetworkConfig:
-    def __init__(self,node):
-	self.node=node
-	self.jid=JID(node.prop("jid"))
-	servers=node.xpathEval("server")
-	self.servers=[]
-	for s in servers:
-	    server=s.getContent()
-	    port=s.prop("port")
-	    try:
-		port=int(port)
-		if port<1 or port>65535:
-		    raise ValueError
-	    except ValueError:
-		print >>sys.stderr,"Bad port value: %r, using default: 6667" % (port,)
-		port=6667
-	    self.servers.append((server,port))
-	self.default_encoding=node.prop("encoding")
-    def get_servers(self):
-	r=self.servers
-	self.servers=self.servers[-1:]+self.servers[1:]
-	return r
-
-class Config:
-    def __init__(self,filename):
-	self.doc=None
-	parser=libxml2.createFileParserCtxt(filename)
-	parser.validate(1)
-	parser.parseDocument()
-	if not parser.isValid():
-	    raise JJIGWFatalError,"Invalid configuration"
-	self.doc=parser.doc()
-	self.connect=ConnectConfig(self.doc.xpathEval("jjigw/connect")[0])
-	self.network=NetworkConfig(self.doc.xpathEval("jjigw/network")[0])
-    def __del__(self):
-	if self.doc:
-	    self.doc.freeDoc()
-
 evil_characters_re=re.compile(r"[\000-\010\013\014\016-\037]")
 def remove_evil_characters(s):
     return evil_characters_re.sub(" ",s)
@@ -126,6 +81,68 @@ irc_translate_table=string.maketrans(
 
 def normalize(s):
     return s.translate(irc_translate_table)
+
+
+class ConnectConfig:
+    def __init__(self,node):
+	self.node=node
+	self.host=node.xpathEval("host")[0].getContent()
+	self.port=int(node.xpathEval("port")[0].getContent())
+	self.secret=node.xpathEval("secret")[0].getContent()
+
+class ServerConfig:
+    def __init__(self,node):
+	self.host=node.getContent()
+	self.port=node.prop("port")
+	try:
+	    self.port=int(self.port)
+	    if self.port<1 or self.port>65535:
+		raise ValueError
+	except ValueError:
+	    print >>sys.stderr,"Bad port value: %r, using default: 6667" % (self.port,)
+	    self.port=6667
+
+class ChannelConfig:
+    def __init__(self,node):
+	self.name=node.getContent()
+	self.encoding=node.prop("encoding")
+
+class NetworkConfig:
+    def __init__(self,node):
+	self.node=node
+	self.jid=JID(node.prop("jid"))
+	servers=node.xpathEval("server")
+	self.servers=[]
+	for s in servers:
+	    self.servers.append(ServerConfig(s))
+	channels=node.xpathEval("channel")
+	self.channels={}
+	if channels:
+	    for c in channels:
+		ch=ChannelConfig(c)
+		self.channels[normalize(ch.name)]=ch
+	self.default_encoding=node.prop("encoding")
+    def get_servers(self):
+	r=self.servers
+	self.servers=self.servers[-1:]+self.servers[1:]
+	return r
+    def get_channel_config(self,channel):
+	return self.channels.get(normalize(channel))
+
+class Config:
+    def __init__(self,filename):
+	self.doc=None
+	parser=libxml2.createFileParserCtxt(filename)
+	parser.validate(1)
+	parser.parseDocument()
+	if not parser.isValid():
+	    raise JJIGWFatalError,"Invalid configuration"
+	self.doc=parser.doc()
+	self.connect=ConnectConfig(self.doc.xpathEval("jjigw/connect")[0])
+	self.network=NetworkConfig(self.doc.xpathEval("jjigw/network")[0])
+    def __del__(self):
+	if self.doc:
+	    self.doc.freeDoc()
 
 class IRCUser:
     def __init__(self,session,nick,user="",host=""):
@@ -233,7 +250,11 @@ class Channel:
 	self.state=None
 	self.stanza=None
 	self.room_jid=None
-	self.encoding=session.default_encoding
+	self.config=session.network.get_channel_config(name)
+	if self.config and self.config.encoding:
+	    self.encoding=self.config.encoding
+	else:
+	    self.encoding=session.default_encoding
 	self.modes={}
 	self.users=[]
 	self.muc=0
@@ -524,7 +545,7 @@ class IRCSession:
 	self.servers_left=self.network.get_servers()
 	self.input_buffer=""
 	self.used_for=[]
-	self.server=""
+	self.server=None
 	self.join_requests=[]
 	self.messages_to_channel=[]
 	self.messages_to_user=[]
@@ -657,7 +678,7 @@ class IRCSession:
 	self.debug("Trying to connect to %r" % (server,))
 	try:
 	    self.socket=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-	    self.socket.connect(server)
+	    self.socket.connect((server.host,server.port))
 	except (IOError,OSError,socket.error),err:
 	    self.debug("Server connect error: %r" % (err,))
 	    if self.socket:
@@ -670,7 +691,7 @@ class IRCSession:
 	self._send("NICK %s" % (self.nick,))
 	user=sha.new(self.jid.bare().as_string()).hexdigest()
 	self._send("USER %s 0 * :JJIGW User %s" % (user,user))
-	self.server=server[0]
+	self.server=server
 	self.cond.notify()
 
     def _send(self,str):
@@ -859,7 +880,7 @@ class IRCSession:
 	    return
 	nprefix=normalize(prefix)
 	nnick=normalize(self.nick)
-	nserver=normalize(self.server)
+	nserver=normalize(self.server.host)
 	if nprefix==nnick or prefix and nprefix.startswith(nnick+"!"):
 	    return
 	if nprefix==nserver and len(params)==2 and params[0]==self.nick:
@@ -871,7 +892,7 @@ class IRCSession:
 	    body=u"(%s) %s %r" % (prefix,command,params)
 	else:
 	    body=u"%s %r" % (command,params)
-	fr=JID(None,self.network.jid.domain,self.server)
+	fr=JID(None,self.network.jid.domain,self.server.host)
 	m=Message(to=self.jid,fr=fr,body=body)
 	self.component.send(m)
 
@@ -899,19 +920,23 @@ class IRCSession:
 		return
 	finally:
 	    self.cond.release()
-	channel=stanza.get_to().node
-	channel=node_to_channel(channel,self.default_encoding)
-	if not channel_re.match(channel):
-	    debug("Bad channel name: %r" % (channel,))
+	channel_name=stanza.get_to().node
+	channel_name=node_to_channel(channel_name,self.default_encoding)
+	if not channel_re.match(channel_name):
+	    self.debug("Bad channel name: %r" % (channel_name,))
 	    return
-	body=stanza.get_body().encode(self.default_encoding,"replace")
+	channel=self.channels.get(normalize(channel_name))
+	if channel:
+	    encoding=channel.encoding
+	else:
+	    encoding=self.default_encoding
+	body=stanza.get_body().encode(encoding,"replace")
 	body=body.replace("\n"," ").replace("\r"," ")
 	if body.startswith("/me "):
 	    body="\001ACTION "+body[4:]+"\001"
-	self.send("PRIVMSG %s :%s" % (channel,body))
-	channel=self.channels.get(normalize(channel))
+	self.send("PRIVMSG %s :%s" % (channel_name,body))
 	if channel:
-	    channel.irc_cmd_PRIVMSG(self.nick,"PRIVMSG",[channel.name,body])
+	    channel.irc_cmd_PRIVMSG(self.nick,"PRIVMSG",[channel_name,body])
 
     def message_to_user(self,stanza):
 	self.cond.acquire()
