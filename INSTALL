@@ -6,7 +6,7 @@
 
   For latest CVS version of JJIGW you will probably need the latest CVS version of PyXMPP.
 
-  Release 0.1 was tested with Python 2.3.3 and PyXMPP 0.4.
+  Release 0.2 was tested with Python 2.3.3 and PyXMPP 0.5.
 
 2. Installation:
 
