@@ -1,6 +1,12 @@
 2004-02-14  Jacek Konieczny  <jajcus@bnet.pl>
 
 	* jjigw.py:
+	- IRCUser.descr() - "nick(user@host)"
+	- improved request handling
+	- more IRC error responses handled
+	- basic kicking (no <iq type="response"/> yet)
+
+	* jjigw.py:
 	- remove evil characters from topic and error messages
 
 	* jjigw.py:
