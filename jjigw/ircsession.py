@@ -634,7 +634,11 @@ class IRCSession:
 
     def get_channel(self,jid):
         channel_name=jid.node
-        channel_name=node_to_channel(channel_name,self.default_encoding)
+        try:
+            channel_name=node_to_channel(channel_name,self.default_encoding)
+        except ValueError:
+            self.debug("Bad channel name: %r" % (channel_name,))
+            return None
         if not channel_re.match(channel_name):
             self.debug("Bad channel name: %r" % (channel_name,))
             return None
