@@ -1,0 +1,54 @@
+2004-02-01  Jacek Konieczny  <jajcus@bnet.pl>
+
+	* jjigw.py:
+	- error handling improvements (still a lot to do here)
+
+	* jjigw.py:
+	- color stripping
+	- login optimizations
+
+2004-01-30  Jacek Konieczny  <jajcus@bnet.pl>
+
+	* jjigw.py:
+	- strip 'target' from numerics
+
+	* jjigw.py:
+	- channel modes support
+	- +o,+v channel modes mapping to MUC affiliations/roles
+	- __repr__() for IRCUser and IRCChannel (for debugging)
+	- <status code="303"/> when nick is changed
+
+2004-01-29  Jacek Konieczny  <jajcus@bnet.pl>
+
+	* jjigw.py:
+	- private chat support
+
+2004-01-27  Jacek Konieczny  <jajcus@bnet.pl>
+
+	* jjigw.py:
+	- MUC basics for JJIGW
+
+	* .cvsignore, jjigw.xml, jjigw.xml.example:
+	- example config called jjigw.xml.example so local changes to jjigw.xml are never commited to CVS
+
+2004-01-26  Jacek Konieczny  <jajcus@bnet.pl>
+
+	* jjigw.py:
+	- NICK and QUIT server commands support
+	- enter/leave/change_nick messages
+
+	* jjigw.py:
+	- ignore case in received channel commands
+
+	* jjigw.py:
+	- IRC case-insesitivity
+
+	* TODO:
+	- TODO
+
+	* jjigw.py:
+	- allow capital letters in nicknames
+
+	* .cvsignore, README, jjigw.py, jjigw.xml:
+	- Jajcus' Jabber-IRC Gateway
+
