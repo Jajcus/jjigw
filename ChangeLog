@@ -1,5 +1,15 @@
 2004-02-08  Jacek Konieczny  <jajcus@bnet.pl>
 
+	* jjigw.xml.example:
+	- example updated
+
+	* jjigw.py:
+	- allow 8 bit nicknames in some networks
+
+	* jjigw.dtd:
+	- allow multiple <network/> elements (currently only the first one will work)
+	- 'nicks_8bit' network attribute
+
 	* TODO:
 	- updated
 
