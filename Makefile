@@ -37,7 +37,7 @@ version:
 
 jjigw.py.inst: jjigw.py
 	$(SED) -e \
-		"s#^config_dir,data_dir=.*#config_dir,data_dir=\"$(sysconfdir)\",\"$(pkg_datadir)\"#" \
+		"s#config_dir,data_dir=.*#config_dir,data_dir=\"$(sysconfdir)\",\"$(pkg_datadir)\"#" \
 		jjigw.py > jjigw.py.inst
 
 catalog.xml.inst: catalog.xml
