@@ -1,5 +1,20 @@
 2004-02-07  Jacek Konieczny  <jajcus@bnet.pl>
 
+	* README:
+	- updated
+
+	* INSTALL:
+	- simple installation instructions. Much more to be written.
+
+	* COPYING:
+	- license
+
+	* TODO:
+	- updated
+
+	* jjigw.py:
+	- configurable network and channel encodings
+
 	* jjigw.dtd:
 	- channel encoding is jjigw.pyIMPLIED
 
