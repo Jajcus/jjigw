@@ -87,7 +87,6 @@ irc_translate_table=string.maketrans(
 def normalize(s):
     return s.translate(irc_translate_table)
 
-
 class ConnectConfig:
     def __init__(self,node):
 	self.node=node
@@ -262,7 +261,6 @@ class IRCUser:
 	    return
 	channel,user,host,server,nick,flags,rest=params
 	fullname=rest.split(None,1)[1]
-	self.debug("Channel: %r" % (channel,))
 	if channel and channel!="*":
 	    channel=self.session.channels.get(normalize(channel))
 	    if not channel:
@@ -276,7 +274,6 @@ class IRCUser:
 	    self.host=host
 	    self.user=user
 	    if channel:
-		self.debug("Channel: %r" % (channel,))
 		self.join_channel(channel)
 		if "@" in flags:
 		    channel.set_mode("o",self)
@@ -394,7 +391,6 @@ class Channel:
 	    p=MucPresence(fr=self.nick_to_jid(user.nick),to=self.session.jid)
 	else:
 	    p=MucPresence(type="unavailable",fr=self.nick_to_jid(user.nick),to=self.session.jid)
-	self.debug("%r modes: %r" % (self.name,self.modes))
 	if self.muc:
 	    if user in self.modes.get("o",[]):
 		aff="admin"
@@ -405,9 +401,12 @@ class Channel:
 	    elif self.modes.get("m"):
 		aff="none"
 		role="visitor"
-	    else:
+	    elif user in self.users:
 		aff="none"
 		role="participant"
+	    else:
+		aff="none"
+		role="none"
 	    ui=p.make_muc_userinfo()
 	    if nick:
 		nick=unicode(user.nick,self.encoding,"replace")
@@ -464,10 +463,10 @@ class Channel:
 	self.irc_mode_changed(prefix,command,params)
 	
     def irc_cmd_482(self,prefix,command,params): # ERR_CHANOPRIVSNEEDED
-	self.irc_error_response(prefix,command,params,["TOPIC","KICK"],"forbidden")
+	self.irc_error_response(prefix,command,params,["TOPIC","KICK","MODE"],"forbidden")
 
     def irc_cmd_461(self,prefix,command,params): # ERR_NEEDMOREPARAMS
-	self.irc_error_response(prefix,command,params,["TOPIC","KICK"],"bad-request")
+	self.irc_error_response(prefix,command,params,["TOPIC","KICK","MODE"],"bad-request")
 
     def irc_cmd_403(self,prefix,command,params): # ERR_NOSUCHCHANNEL
 	self.irc_error_response(prefix,command,params,["KICK"],"recipient-unavailable")
@@ -476,13 +475,16 @@ class Channel:
 	self.irc_error_response(prefix,command,params,["KICK"],"bad-request")
     
     def irc_cmd_441(self,prefix,command,params): # ERR_USERNOTINCHANNEL
-	self.irc_error_response(prefix,command,params,["KICK"],"item-not-found")
+	self.irc_error_response(prefix,command,params,["KICK","MODE"],"item-not-found")
 	
     def irc_cmd_442(self,prefix,command,params): # ERR_NOTONCHANNEL
 	self.irc_error_response(prefix,command,params,["TOPIC","KICK"],"forbidden")
 
+    def irc_cmd_472(self,prefix,command,params): # ERR_UNKNOWNMODE
+	self.irc_error_response(prefix,command,params,["MODE"],"feature-not-implemented")
+
     def irc_cmd_477(self,prefix,command,params): # ERR_NOCHANMODES
-	self.irc_error_response(prefix,command,params,["TOPIC"],"not-acceptable")
+	self.irc_error_response(prefix,command,params,["TOPIC","MODE"],"not-acceptable")
 
     def irc_error_response(self,prefix,command,params,requests,condition):
 	command,stanza=self.requests.get(requests)
@@ -528,6 +530,11 @@ class Channel:
 			unicode(nick,self.encoding,"replace"),
 			unicode(iuser,self.encoding,"replace")),
 		0)
+	if self.session.check_prefix(prefix) and len(params)>=3:
+	    r=self.requests.get("MODE",(params[1],normalize(params[2])))
+	    if r:
+		reply=r.stanza.make_result_response()
+		self.session.component.send(reply)
 	self.irc_mode_changed(prefix,command,params)
 
     def irc_mode_changed(self,prefix,command,params):
@@ -567,7 +574,6 @@ class Channel:
 		    self.sync_user(u)
 
     def user_mode_changed(self,user,actor,mode):
-	self.debug("user_mode_changed(%r,%r,%r)" % (user,actor,mode))
 	if actor:
 	    actor_jid=self.nick_to_jid(actor.nick)
 	else:
@@ -639,7 +645,12 @@ class Channel:
 		self.session.component.send(iq)
 
     def irc_cmd_PRIVMSG(self,prefix,command,params):
-	self.debug("Message on channel %r" % (self.name,))
+	self.irc_message(prefix,command,params)
+
+    def irc_cmd_NOTICE(self,prefix,command,params):
+	self.irc_message(prefix,command,params)
+
+    def irc_message(self,prefix,command,params):
 	if not self.state or len(params)<2:
 	    self.debug("ignoring it")
 	    return
@@ -670,9 +681,24 @@ class Channel:
 	self.requests.add("TOPIC",stanza)
 
     def kick_user(self,nick,reason,stanza):
+	nick=nick.encode(self.encoding,"strict")
 	self.session.send("KICK %s %s :%s" % (self.name,nick,reason))
 	self.requests.add("KICK",stanza,nick)
-   
+ 
+    def op_user(self,nick,stanza):
+	nick=nick.encode(self.encoding,"strict")
+	user=self.session.users.get(normalize(nick))
+	if not user in self.users:
+	   r=stanza.make_error_response("item-not-found")
+	   self.session.component.send(r)
+	   return
+	if user in self.modes.get("o",[]):
+	   r=stanza.make_result_response()
+	   self.session.component.send(r)
+	   return
+	self.session.send("MODE %s +o %s" % (self.name,nick))
+	self.requests.add("MODE",stanza,("+o",normalize(nick)))
+
     def __repr__(self):
 	return "<IRCChannel %r>" % (self.name,)
 
@@ -929,7 +955,6 @@ class IRCSession:
 	    split=split[1:]
 	if command and numeric_re.match(command):
 	    params=params[1:]
-	self.debug("Prefix: %r Command: %r params: %r" % (prefix,command,params))
 	self.lock.release()
 	try:
 	    f=None
@@ -944,7 +969,6 @@ class IRCSession:
 		f(prefix,command,params)
 	    else:
 		for u in self.used_for:
-		    self.debug("u: %r" % (u,))
 		    if u.bare()==self.network.jid:
 			self.pass_input_to_user(prefix,command,params)
 			break
@@ -965,7 +989,12 @@ class IRCSession:
 		ch.nick_changed(oldnick,user)
 
     def irc_cmd_PRIVMSG(self,prefix,command,params):
-	self.debug("Message from %r" % (prefix,))
+	self.irc_message(prefix,command,params)
+
+    def irc_cmd_NOTICE(self,prefix,command,params):
+	self.irc_message(prefix,command,params)
+
+    def irc_message(self,prefix,command,params):
 	if len(params)<2:
 	    self.debug("ignoring it")
 	    return
@@ -1075,22 +1104,17 @@ class IRCSession:
 	    self.debug("too short - ignoring")
 	    return
 	user=self.get_user(params[4])
-	self.debug("Got user %r" % (user.nick,))
 	user.whoreply(params)
-	self.debug("%r on channels %r" % (user.nick,user.channels.keys()))
 	for c in user.channels.keys():
-	    self.debug("announcing %r presence on channel %r" % (user.nick,c))
 	    channel=user.channels[c]
 	    self.component.send(channel.get_user_presence(user))
    
     def send_error_message(self,source,cond,text):
-	self.debug("send_error_message(self,%r,%r,%r)" % (source,cond,text))
 	text=remove_evil_characters(text)
    	user=self.get_user(source)
 	if user:
 	    self.unregister_user(user)
 	if user and user.current_thread:
-	    self.debug("user.current_thread: %r" % (user.current_thread,))
 	    typ,thread,fr=user.current_thread
 	    if not fr:
 		fr=self.prefix_to_jid(source)
@@ -1098,7 +1122,6 @@ class IRCSession:
 		    to=self.jid,fr=fr,thread=thread)
 	else:
 	    fr=self.prefix_to_jid(source)
-	    self.debug("from: %r" % (fr,))
 	    m=Message(type="error",error_cond=cond,error_text=text,
 		    to=self.jid,fr=fr)
 	self.component.send(m)
@@ -1149,7 +1172,6 @@ class IRCSession:
 	return self.channels.get(normalize(channel_name))
 
     def message_to_channel(self,stanza):
-	self.debug("message_to_channel(%r)" % (stanza,))
 	self.cond.acquire()
 	try:
 	    if not self.ready:
@@ -1162,27 +1184,21 @@ class IRCSession:
 	    e=stanza.make_error_response("bad-request")
 	    self.component.send(e)
 	    return
-	self.debug("channel: %r" % (channel,))
 	if channel:
 	    encoding=channel.encoding
 	else:
 	    encoding=self.default_encoding
-	self.debug("encoding: %r" % (encoding,))
 	subject=stanza.get_subject()
-	self.debug("subject: %r" % (subject,))
 	if subject and channel:
 	    channel.change_topic(subject,stanza.copy())
 	body=stanza.get_body()
-	self.debug("body: %r" % (body,))
 	if body:
 	    body=body.encode(encoding,"replace")
 	    body=body.replace("\n"," ").replace("\r"," ")
-	    self.debug("body: %r" % (body,))
 	    if body.startswith("/me "):
 		body="\001ACTION "+body[4:]+"\001"
 	    self.send("PRIVMSG %s :%s" % (channel.name,body))
 	    channel.irc_cmd_PRIVMSG(self.nick,"PRIVMSG",[channel.name,body])
-	self.debug("message_to_channel: done")
 
     def message_to_user(self,stanza):
 	self.cond.acquire()
@@ -1203,7 +1219,6 @@ class IRCSession:
 	if not self.network.valid_nick(nick):
 	    debug("Bad nick: %r" % (nick,))
 	    return
-	self.debug("Nick: %r" % (nick,))
 	user=self.get_user(nick)
 	user.current_thread=stanza.get_type(),stanza.get_thread(),thread_fr
 	body=stanza.get_body().encode(self.default_encoding,"replace")
@@ -1405,6 +1420,8 @@ class Component(pyxmpp.jabberd.Component):
 	item=items[0] 
 	if item.role=="none":
 	    channel.kick_user(item.nick,item.reason,iq)
+	elif item.role=="moderator":
+	    channel.op_user(item.nick,iq)
 	else:
 	    self.debug("Unknown admin action")
 	    iq=iq.make_error_response("feature-not-implemented")
