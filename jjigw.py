@@ -30,6 +30,7 @@ def strip_colors(s):
 numeric_re=re.compile(r"\d\d\d")
 channel_re=re.compile(r"^[&#+!][^\000 \007 ,:\r\n]{1,49}$")
 nick_re=re.compile(r"^[a-zA-Z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}][a-zA-Z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}0-9-]{0,8}$")
+nick8_re=re.compile(r"^[a-zA-Z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}\x80-\xff][a-zA-Z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}0-9\x80-\xff-]{0,8}$")
 
 def escape_node_string(s):
     s=s.replace(",quot,",'"')
@@ -63,10 +64,10 @@ def channel_to_node(ch,encoding):
     n=unicode(s,encoding,"strict")
     return n
 
-def node_to_nick(n,encoding):
+def node_to_nick(n,encoding,network):
     s=n.encode(encoding,"strict")
     s=escape_node_string(s)
-    if not nick_re.match(s):
+    if not network.valid_nickk(s):
 	raise ValueError,"Bad nick name: %r" % (s,)
     return s
 
@@ -122,12 +123,22 @@ class NetworkConfig:
 		ch=ChannelConfig(c)
 		self.channels[normalize(ch.name)]=ch
 	self.default_encoding=node.prop("encoding")
+	self.nicks_8bit=node.prop("nicks_8bit")
     def get_servers(self):
 	r=self.servers
 	self.servers=self.servers[-1:]+self.servers[1:]
 	return r
     def get_channel_config(self,channel):
 	return self.channels.get(normalize(channel))
+    def valid_nick(self,s):
+	if self.nicks_8bit:
+	    m=nick8_re.match(s)
+	else:
+	    m=nick_re.match(s)
+	if m:
+	    return 1
+	else:
+	    return 0
 
 class Config:
     def __init__(self,filename):
@@ -530,7 +541,7 @@ class IRCSession:
 	self.network=config.network
 	self.default_encoding=self.network.default_encoding
 	nick=nick.encode(self.default_encoding,"strict")
-	if not nick_re.match(nick):
+	if not self.network.valid_nick(nick):
 	    raise ValueError,"Bad nickname"
 	self.jid=jid
 	self.nick=nick
@@ -588,7 +599,7 @@ class IRCSession:
 	    nick=prefix.split("!",1)[0]
 	else:
 	    nick=prefix
-	if not nick_re.match(nick):
+	if not self.network.valid_nick(nick):
 	    return None
 	nnick=normalize(nick)
 	if self.users.has_key(nnick):
@@ -954,7 +965,7 @@ class IRCSession:
 	    nick=to.node
 	    thread_fr=None
 	nick=node_to_nick(nick,self.default_encoding)
-	if not nick_re.match(nick):
+	if not self.network.valid_nick(nick):
 	    debug("Bad nick: %r" % (nick,))
 	    return
 	self.debug("Nick: %r" % (nick,))
