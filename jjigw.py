@@ -16,6 +16,9 @@ from pyxmpp import ClientStream,JID,Iq,Presence,Message,StreamError
 import pyxmpp.jabberd
 from pyxmpp.jabber.muc import MucPresence,MucX,MucUserX,MucItem,MUC_NS
 
+class JJIGWFatalError(RuntimeError):
+    pass
+
 class ConnectConfig:
     def __init__(self,node):
 	self.node=node
@@ -30,8 +33,17 @@ class NetworkConfig:
 	servers=node.xpathEval("server")
 	self.servers=[]
 	for s in servers:
-	    self.servers.append((s.getContent(),6667))
-	self.default_encoding="iso-8859-2"
+	    server=s.getContent()
+	    port=s.prop("port")
+	    try:
+		port=int(port)
+		if port<1 or port>65535:
+		    raise ValueError
+	    except ValueError:
+		print >>sys.stderr,"Bad port value: %r, using default: 6667" % (port,)
+		port=6667
+	    self.servers.append((server,port))
+	self.default_encoding=node.prop("encoding")
     def get_servers(self):
 	r=self.servers
 	self.servers=self.servers[-1:]+self.servers[1:]
@@ -39,12 +51,18 @@ class NetworkConfig:
 
 class Config:
     def __init__(self,filename):
-	self.doc=libxml2.parseFile(filename)
+	self.doc=None
+	parser=libxml2.createFileParserCtxt(filename)
+	parser.validate(1)
+	parser.parseDocument()
+	if not parser.isValid():
+	    raise JJIGWFatalError,"Invalid configuration"
+	self.doc=parser.doc()
 	self.connect=ConnectConfig(self.doc.xpathEval("jjit/connect")[0])
 	self.network=NetworkConfig(self.doc.xpathEval("jjit/network")[0])
     def __del__(self):
-	self.doc.freeDoc()
-
+	if self.doc:
+	    self.doc.freeDoc()
 
 evil_characters_re=re.compile(r"[\000-\010\013\014\016-\037]")
 def remove_evil_characters(s):
@@ -1163,13 +1181,17 @@ class Component(pyxmpp.jabberd.Component):
 	self.stream.send(p)
 	return 1
 
+try:
+    config=Config("jjigw.xml")
 
-config=Config("jjigw.xml")
+    print "creating component..."
+    c=Component(config)
 
-print "creating component..."
-c=Component(config)
-
-print "starting..."
-c.run(1)
+    print "starting..."
+    c.run(1)
+except JJIGWFatalError,e:
+    print e
+    print "Aborting."
+    sys.exit(1)
 
 # vi: sw=4 ts=8 sts=4
