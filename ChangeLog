@@ -1,3 +1,14 @@
+2004-05-09  Jacek Konieczny  <jajcus@bnet.pl>
+
+	* jjigw/channel.py, jjigw/component.py, jjigw/ircsession.py:
+	- raw channel ("#" conference room) - for debuging
+	- gateway status accessible selected users (administrators defined in config file) via Disco
+	- channel leaving implemented
+	- some fixes
+
+	* jjigw/config.py, jjigw.dtd:
+	- <admin/> element added. (jid defined in <admin/> is allowed to Disco gateway status
+
 2004-05-05  Jacek Konieczny  <jajcus@bnet.pl>
 
 	* jjigw/__init__.py, jjigw/channel.py, jjigw/common.py, jjigw/component.py, jjigw/config.py, jjigw/ircsession.py, jjigw/ircuser.py, jjigw/requests.py, jjigw/spidentd.py, jjigw.py, spidentd.py:
