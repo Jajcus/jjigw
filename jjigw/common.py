@@ -34,7 +34,7 @@ def strip_colors(s):
     return color_re.sub("",s)
 
 numeric_re=re.compile(r"\d\d\d")
-channel_re=re.compile(r"^[&#+!][^\000 \007 ,:\r\n]$")
+channel_re=re.compile(r"^[&#+!][^\000 \007 ,:\r\n]+$")
 nick_re=re.compile(r"^[a-zA-Z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}][a-zA-Z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}0-9-]*$")
 nick8_re=re.compile(r"^[a-zA-Z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}\x80-\xff][a-zA-Z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}0-9\x80-\xff-]*$")
 
