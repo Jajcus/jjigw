@@ -1,3 +1,7 @@
-- more IRC stream error handling
 - more MUC support - topic change, kick, ban, invite
+- multiple domain/network support (easy with Jabberd2 component protocol,
+  which is not yet supported by PyXMPP, but with jabber:component:accept could
+  also be done).
 - simple ident server with "uplink" capability
+- channel list browsing (using Service Discovery)
+- more IRC stream error handling
