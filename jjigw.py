@@ -251,7 +251,7 @@ class Channel:
     def irc_cmd_JOIN(self,prefix,command,params):
 	nprefix=normalize(prefix)
 	nnick=normalize(self.session.nick)
-	if nprefix==nnick or nprefix.startswith(nnick+"!")):
+	if nprefix==nnick or nprefix.startswith(nnick+"!"):
 	    if self.state=="join":
 		self.debug("Channel %r joined!" % (self.name,))
 		p=Presence(type="available",fr=self.stanza.get_to(),
@@ -494,7 +494,7 @@ class IRCSession:
 	try:
 	    f=None
 	    for c in self.channels.keys():
-		if params and params[0]==c:
+		if params and normalize(params[0])==c:
 		    f=getattr(self.channels[c],"irc_cmd_"+command,None)
 		    if f:
 			break
@@ -551,7 +551,7 @@ class IRCSession:
 
     def join(self,stanza):
 	to=stanza.get_to()
-	channel=node_to_channel(to,self.default_encoding)
+	channel=node_to_channel(to.node,self.default_encoding)
 	if self.channels.has_key(normalize(channel)):
 	    return
 	self.cond.acquire()
