@@ -1,3 +1,8 @@
+2004-05-05  Jacek Konieczny  <jajcus@bnet.pl>
+
+	* jjigw/component.py, jjigw/spidentd.py:
+	- spidentd support fixed after the code split
+
 2004-05-04  Jacek Konieczny  <jajcus@bnet.pl>
 
 	* jjigw.dtd, jjigw.py, jjigw/.cvsignore, jjigw/__init__.py, jjigw/channel.py, jjigw/common.py, jjigw/component.py, jjigw/config.py, jjigw/ircsession.py, jjigw/ircuser.py, jjigw/requests.py, jjigw/spidentd.py:
