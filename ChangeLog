@@ -1,3 +1,11 @@
+2004-06-03  Jacek Konieczny  <jajcus@bnet.pl>
+
+	* jjigw/ircsession.py:
+	- don't send presence update in WHOREPLY handler - IRCUser.who_reply already does that
+
+	* jjigw/ircsession.py:
+	- use 'Quit' as QUIT reason when closing connection after leaving all channels
+
 2004-06-01  Jacek Konieczny  <jajcus@bnet.pl>
 
 	* jjigw.py:
