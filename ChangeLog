@@ -1,3 +1,14 @@
+2004-05-16  Jacek Konieczny  <jajcus@bnet.pl>
+
+	* INSTALL:
+	- small updates
+
+	* jjigw/component.py, jjigw/ircsession.py:
+	- cosmetics
+
+	* jjigw.py, jjigw.xml.example, jjigw/.cvsignore, jjigw/config.py, spidentd.py, .cvsignore, Makefile, catalog.xml:
+	- installation (make install)
+
 2004-05-15  Jacek Konieczny  <jajcus@bnet.pl>
 
 	* jjigw/channel.py, jjigw/ircsession.py:
