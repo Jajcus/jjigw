@@ -50,6 +50,7 @@ evil_characters_re=re.compile(r"[\000-\010\013\014\016-\037]")
 def remove_evil_characters(s):
     return evil_characters_re.sub(" ",s)
 
+numeric_re=re.compile(r"\d\d\d")
 channel_re=re.compile(r"^[&#+!][^\000 \007 ,:\r\n]{1,49}$")
 nick_re=re.compile(r"^[a-zA-Z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}][a-zA-Z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}0-9-]{0,8}$")
 
@@ -141,11 +142,11 @@ class IRCUser:
 	    channel.sync_user(self)
 
     def whoreply(self,params):
-	if params[5]!=self.nick:
+	if params[4]!=self.nick:
 	    return
-	if len(params)!=8:
+	if len(params)!=7:
 	    return
-	target,channel,user,host,server,nick,flags,rest=params
+	channel,user,host,server,nick,flags,rest=params
 	fullname=rest.split(None,1)[1]
 	self.debug("Channel: %r" % (channel,))
 	if channel and channel!="*":
@@ -648,6 +649,8 @@ class IRCSession:
 		break
 	    params.append(split[0])
 	    split=split[1:]
+	if command and numeric_re.match(command):
+	    params=params[1:]
 	self.debug("Prefix: %r Command: %r params: %r" % (prefix,command,params))
 	self.lock.release()
 	try:
@@ -709,10 +712,10 @@ class IRCSession:
 
     def irc_cmd_352(self,prefix,command,params):
 	self.debug("WHO reply received")
-	if len(params)<8:
+	if len(params)<7:
 	    self.debug("too short - ignoring")
 	    return
-	user=self.get_user(params[5])
+	user=self.get_user(params[4])
 	self.debug("Got user %r" % (user.nick,))
 	user.whoreply(params)
 	self.debug("%r on channels %r" % (user.nick,user.channels.keys()))
