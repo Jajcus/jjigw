@@ -58,8 +58,8 @@ class Config:
 	if not parser.isValid():
 	    raise JJIGWFatalError,"Invalid configuration"
 	self.doc=parser.doc()
-	self.connect=ConnectConfig(self.doc.xpathEval("jjit/connect")[0])
-	self.network=NetworkConfig(self.doc.xpathEval("jjit/network")[0])
+	self.connect=ConnectConfig(self.doc.xpathEval("jjigw/connect")[0])
+	self.network=NetworkConfig(self.doc.xpathEval("jjigw/network")[0])
     def __del__(self):
 	if self.doc:
 	    self.doc.freeDoc()
