@@ -73,25 +73,32 @@ class Component(pyxmpp.jabberd.Component):
 
     def run(self,timeout):
         self.connect()
-        while (not self.shutdown and self.stream
-                and not self.stream.eof and self.stream.socket is not None):
-            self.stream.loop_iter(timeout)
-        if self.shutdown:
-            for sess in self.irc_sessions.values():
-                sess.disconnect("JJIGW shutdown")
-        threads=threading.enumerate()
-        for th in threads:
-            try:
-                th.join(10*timeout)
-            except:
-                pass
-        for th in threads:
-            try:
-                th.join(timeout)
-            except:
-                pass
-        self.disconnect()
-        self.debug("Exitting normally")
+        try:
+            while (not self.shutdown and self.stream
+                    and not self.stream.eof and self.stream.socket is not None):
+                try:
+                    self.stream.loop_iter(timeout)
+                except (KeyboardInterrupt,SystemExit,FatalStreamError,StreamError):
+                    raise
+                except:
+                    self.print_exception()
+        finally:
+            if self.shutdown:
+                for sess in self.irc_sessions.values():
+                    sess.disconnect("JJIGW shutdown")
+            threads=threading.enumerate()
+            for th in threads:
+                try:
+                    th.join(10*timeout)
+                except:
+                    pass
+            for th in threads:
+                try:
+                    th.join(timeout)
+                except:
+                    pass
+            self.disconnect()
+            self.debug("Exitting normally")
 
     def send(self,stanza):
         self.get_stream().send(stanza)
