@@ -18,7 +18,29 @@
 	<secret>topsecret</secret>
 </connect>
 
-<!-- currently only the first network will work, so choose it carefully :) -->
+<!--
+  
+  JJIGW can be used together with a special ident (RFC1413) server
+  which will return unique id for each unique gateway user.
+
+  The ident daemon (spidentd) is included in the JJIGW package.
+
+<spidentd>
+	<socket>sock</socket>
+</spidentd>
+-->
+
+<!--
+  Administrators - Jabber users allowed to browse JJIGW status via Disco
+-->
+
+<admin>admin@localhost</admin>
+<admin>admin2@otherhost</admin>
+
+<!-- 
+  IRC networks accessible via the gatway. 
+  For Jabberd2 you will need an alias for each network except the first one.
+-->
 
 <!-- 
   freenode network with #pld channel configured to use ISO 8859-2 encoding.
