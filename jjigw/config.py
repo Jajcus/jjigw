@@ -71,21 +71,26 @@ class NetworkConfig:
         self.default_encoding=node.prop("encoding")
         self.nicks_8bit=node.prop("nicks_8bit")
         self.name=node.prop("name")
+        self.max_nick_length=int(node.prop("max_nick_length"))
+        self.max_channel_length=int(node.prop("max_nick_length"))
     def get_servers(self):
         r=self.servers
         self.servers=self.servers[-1:]+self.servers[1:]
         return r
     def get_channel_config(self,channel):
         return self.channels.get(normalize(channel))
-    def valid_nick(self,s):
+    def valid_nick(self,s,strict=1):
         if self.nicks_8bit:
             m=nick8_re.match(s)
         else:
             m=nick_re.match(s)
-        if m:
-            return 1
-        else:
+        if not m:
             return 0
+        if not strict:
+            return 1
+        if len(s)<=self.max_nick_length:
+            return 1
+        return 0
 
 class Config:
     def __init__(self,config_dir,data_dir):

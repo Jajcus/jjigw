@@ -16,7 +16,10 @@
 	jid 		CDATA		#REQUIRED
 	name		CDATA		#IMPLIED
 	encoding 	CDATA		"us-ascii"
-	nicks_8bit	(yes|no)	"no">
+	nicks_8bit	(yes|no)	"no"
+	max_nick_length CDATA		"9"
+	max_channel_length CDATA	"50"
+	>
 <!ELEMENT server 	(#PCDATA) >
 <!ATTLIST server 
 	port 		CDATA		"6667">

@@ -105,7 +105,7 @@ class IRCSession:
                 nick=prefix.split("!",1)[0]
             else:
                 nick=prefix
-            if not self.network.valid_nick(nick):
+            if not self.network.valid_nick(nick,0):
                 return None
         else:
             prefix=self.nick
