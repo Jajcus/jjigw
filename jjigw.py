@@ -9,6 +9,7 @@ import socket
 import user
 import sha
 import string
+import random
 
 from pyxmpp import ClientStream,JID,Iq,Presence,Message,StreamError
 import pyxmpp.jabberd
@@ -88,7 +89,7 @@ def node_to_nick(n,encoding):
     s=n.encode(encoding,"strict")
     s=escape_node_string(s)
     if not nick_re.match(s):
-	raise ValueError,"Bad channel name: %r" % (s,)
+	raise ValueError,"Bad nick name: %r" % (s,)
     return s
 
 def nick_to_node(ch,encoding):
@@ -118,6 +119,7 @@ class IRCUser:
 	self.host=host
 	self.mode={}
 	self.channels={}
+	self.current_thread=None
 
     def join_channel(self,channel):
 	self.channels[normalize(channel.name)]=channel
@@ -582,6 +584,25 @@ class IRCSession:
 	    for ch in user.channels.values():
 		ch.nick_changed(oldnick,user)
 
+    def irc_cmd_PRIVMSG(self,prefix,command,params):
+	self.debug("Message from %r" % (prefix,))
+	if len(params)<2:
+	    self.debug("ignoring it")
+	    return
+	user=self.get_user(prefix)
+	if user.current_thread:
+	    typ,thread,fr=user.current_thread
+	else:
+	    typ="chat"
+	    thread=str(random.random())
+	    fr=None
+	    user.current_thread=typ,thread,None
+	if not fr:
+	    fr=user.jid()
+	body=unicode(params[1],self.default_encoding,"replace")
+	m=Message(type=typ,fr=fr,to=self.jid,body=remove_evil_characters(body))
+	self.component.send(m)
+ 
     def irc_cmd_QUIT(self,prefix,command,params):
 	user=self.get_user(prefix)
 	user.leave_all()
@@ -657,6 +678,29 @@ class IRCSession:
 	if channel:
 	    channel.irc_cmd_PRIVMSG(self.nick,"PRIVMSG",[channel.name,body])
 
+    def message_to_user(self,stanza):
+	if not self.ready:
+	    return
+	to=stanza.get_to()
+	if to.resource and (to.node[0] in "#+!" or to.node.startswith(",amp,")):
+	    nick=to.resource
+	    thread_fr=stanza.get_to()
+	else:
+	    nick=to.node
+	    thread_fr=None
+	nick=node_to_nick(nick,self.default_encoding)
+	if not nick_re.match(nick):
+	    debug("Bad nick: %r" % (nick,))
+	    return
+	self.debug("Nick: %r" % (nick,))
+	user=self.get_user(nick)
+	user.current_thread=stanza.get_type(),stanza.get_thread(),thread_fr
+	body=stanza.get_body().encode(self.default_encoding,"replace")
+	body=body.replace("\n"," ").replace("\r"," ")
+	if body.startswith("/me "):
+	    body="\001ACTION "+body[4:]+"\001"
+	self.send("PRIVMSG %s :%s" % (nick,body))
+
     def disconnect(self,reason):
 	if not reason:
 	    reason="Unknown reason"
@@ -696,6 +740,7 @@ class Component(pyxmpp.jabberd.Component):
 	self.stream.set_presence_handler("unavailable",self.presence_unavailable)
 	self.stream.set_presence_handler("subscribe",self.presence_control)
 	self.stream.set_message_handler("groupchat",self.groupchat_message)
+	self.stream.set_message_handler("normal",self.message)
 
     def get_version(self,iq):
 	iq=iq.make_result_response()
@@ -755,14 +800,41 @@ class Component(pyxmpp.jabberd.Component):
 	self.stream.send(iq)
 	return 1
 
+    def message(self,stanza):
+	to=stanza.get_to()
+	fr=stanza.get_from()
+	typ=stanza.get_type()
+	if typ not in (None,"chat"):
+	    typ=None
+	sess=self.irc_sessions.get(fr.as_unicode())
+	if not to.node:
+	    if sess:
+		m=Message(to=fr,fr=to,body="Connected to: %s" % (sess.server,),type=typ)
+	    else:
+		m=Message(to=fr,fr=to,body="Not connected",type=typ)
+	    return 1
+	if not to.resource and (to.node[0] in "#+!" or to.node.startswith(",amp,")):
+	    self.groupchat_message(stanza)
+	sess=self.irc_sessions.get(fr.as_unicode())
+	if sess:
+	    sess.message_to_user(stanza)
+	else:
+	    m=stanza.make_error_response("recipient-unavailable")
+	    self.send(m)
+	return 1
+
+
     def groupchat_message(self,stanza):
 	to=stanza.get_to()
-	if to.resource:
-	    self.debug("Groupchat message target is not bare JID")
-	    return
 	if not to.node:
 	    self.debug("No node in groupchat message target")
-	    return
+	    return 0
+	if to.node[0] not in "#+!" and not to.node.startswith(",amp,"):
+	    self.debug("Groupchat message target is not a channel")
+	    return self.message(stanza)
+	if to.resource:
+	    self.debug("Groupchat message target is not bare JID")
+	    return 0
 	fr=stanza.get_from()	
 	sess=self.irc_sessions.get(fr.as_unicode())
 	if sess:
