@@ -1,5 +1,5 @@
 
-<!ELEMENT jjigw 		(connect,spidentd?,network+) >
+<!ELEMENT jjigw 		(connect,spidentd?,admin*,network+) >
 
 <!ELEMENT connect 	(host,port,secret) >
 <!ELEMENT host 		(#PCDATA) >
@@ -8,6 +8,8 @@
 
 <!ELEMENT spidentd	(socket) >
 <!ELEMENT socket	(#PCDATA) >
+
+<!ELEMENT admin		(#PCDATA) >
 
 <!ELEMENT network 	(server+,channel*) >
 <!ATTLIST network 

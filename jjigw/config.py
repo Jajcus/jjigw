@@ -108,6 +108,9 @@ class Config:
             self.spidentd=SPIdentDConfig(spidentd[0])
         else:
             self.spidentd=None
+        self.admins=[]
+        for n in self.doc.xpathEval("jjigw/admin"):
+            self.admins.append(JID(n.getContent()))
     def get_network(self,jid):
         if isinstance(jid,JID):
             return self.networks[jid.domain]
