@@ -2,3 +2,6 @@
 pyxmpp
 jjigw.xml
 *.inst
+log
+*.prof
+*.log
