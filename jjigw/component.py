@@ -24,7 +24,7 @@ import string
 import logging
 
 import pyxmpp.jabberd
-from pyxmpp import Presence,Message,StreamError,FatalStreamError
+from pyxmpp import Presence,Message,StreamError,FatalStreamError,JID
 from pyxmpp.jabber.muc import MUC_ADMIN_NS,MUC_NS
 from pyxmpp.jabber.muc import MucPresence,MucIq,MucAdminQuery
 from pyxmpp.jabber.disco import DiscoItems,DiscoItem,DiscoInfo,DiscoIdentity
@@ -181,7 +181,7 @@ class Component(pyxmpp.jabberd.Component):
         iq=iq.make_result_response()
         q=iq.new_query("jabber:iq:version")
         q.newTextChild(q.ns(),"name","Jajcus' Jabber-IRC Gateway")
-        q.newTextChild(q.ns(),"version","0.1")
+        q.newTextChild(q.ns(),"version","0.2.2")
         self.stream.send(iq)
         return 1
 
@@ -382,6 +382,15 @@ class Component(pyxmpp.jabberd.Component):
             print "Requester: %r Admins: %r" % (fr,self.config.admins)
             if fr in self.config.admins or fr.bare() in self.config.admins:
                 DiscoItem(di,to,"admin","Administrator tree")
+            if network.channels: 
+                for c in network.channels.values():
+                    if not c.browseable:
+                        continue
+                    desc = c.description
+                    if not c.description:
+                        desc = "%s IRC channel on %s IRC network" % (c.name,network.name)
+                    jid = JID(c.name,to,None);
+                    DiscoItem(di,jid,None,desc);
             return di
         if node=="admin" or node.startswith("admin."):
             if fr not in self.config.admins and fr.bare() not in self.config.admins:
