@@ -1,3 +1,8 @@
 
 This is Jajcus' Jabber-IRC Gateway
 
+JJIGW is a Jabber-to-IRC gateway compatible with the Multi User Chat protocol,
+it allows you to join IRC channels and communicate with IRC users via your Jabber
+client.
+	       
+See the INSTALL file for installation instructions and COPYING file for license.
