@@ -110,6 +110,8 @@ class ServerConfig:
 	except ValueError:
 	    print >>sys.stderr,"Bad port value: %r, using default: 6667" % (self.port,)
 	    self.port=6667
+    def __repr__(self):
+	return "<ServerConfig %s:%s/>" % (self.host,self.port)
 
 class ChannelConfig:
     def __init__(self,node):
@@ -487,9 +489,9 @@ class Channel:
 	self.irc_error_response(prefix,command,params,["TOPIC","MODE"],"not-acceptable")
 
     def irc_error_response(self,prefix,command,params,requests,condition):
-	command,stanza=self.requests.get(requests)
-	if command:
-	    m=stanza.make_error_response(condition)
+	r=self.requests.get(requests)
+	if r:
+	    m=r.stanza.make_error_response(condition)
 	else:
 	    m=Message(fr=self.room_jid.bare(),to=self.session.jid,
 		    type="error", error_cond=condition)
@@ -531,7 +533,7 @@ class Channel:
 			unicode(iuser,self.encoding,"replace")),
 		0)
 	if self.session.check_prefix(prefix) and len(params)>=3:
-	    r=self.requests.get("MODE",(params[1],normalize(params[2])))
+	    r=self.requests.get("MODE",string.join(params[1:]," "))
 	    if r:
 		reply=r.stanza.make_result_response()
 		self.session.component.send(reply)
@@ -696,8 +698,50 @@ class Channel:
 	   r=stanza.make_result_response()
 	   self.session.component.send(r)
 	   return
-	self.session.send("MODE %s +o %s" % (self.name,nick))
-	self.requests.add("MODE",stanza,("+o",normalize(nick)))
+	if user in self.modes.get("v",[]):
+	    change="-v+o %s %s" % (nick,nick)
+	else:
+	    change="+o "+nick
+	self.session.send("MODE %s %s" % (self.name,change))
+	self.requests.add("MODE",stanza,change)
+
+    def voice_user(self,nick,stanza):
+	nick=nick.encode(self.encoding,"strict")
+	user=self.session.users.get(normalize(nick))
+	if not user in self.users:
+	   r=stanza.make_error_response("item-not-found")
+	   self.session.component.send(r)
+	   return
+	if user in self.modes.get("v",[]):
+	   r=stanza.make_result_response()
+	   self.session.component.send(r)
+	   return
+	if user in self.modes.get("o",[]):
+	    change="-o+v %s %s" % (nick,nick)
+	else:
+	    change="+v "+nick
+	self.session.send("MODE %s %s" % (self.name,change))
+	self.requests.add("MODE",stanza,change)
+
+    def devoice_user(self,nick,stanza):
+	nick=nick.encode(self.encoding,"strict")
+	user=self.session.users.get(normalize(nick))
+	if not user in self.users:
+	   r=stanza.make_error_response("item-not-found")
+	   self.session.component.send(r)
+	   return
+	if user in self.modes.get("v",[]) and user in self.modes.get("o",[]):
+	   change="-o-v %s %s" % (nick,nick)
+	elif user in self.modes.get("o",[]):
+	    change="-o "+nick
+	elif user in self.modes.get("v",[]):
+	    change="-v "+nick
+	else:
+	   r=stanza.make_result_response()
+	   self.session.component.send(r)
+	   return
+	self.session.send("MODE %s %s" % (self.name,change))
+	self.requests.add("MODE",stanza,change)
 
     def __repr__(self):
 	return "<IRCChannel %r>" % (self.name,)
@@ -1420,6 +1464,10 @@ class Component(pyxmpp.jabberd.Component):
 	item=items[0] 
 	if item.role=="none":
 	    channel.kick_user(item.nick,item.reason,iq)
+	elif item.role=="visitor":
+	    channel.devoice_user(item.nick,iq)
+	elif item.role=="participant":
+	    channel.voice_user(item.nick,iq)
 	elif item.role=="moderator":
 	    channel.op_user(item.nick,iq)
 	else:
