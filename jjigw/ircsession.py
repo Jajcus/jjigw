@@ -710,8 +710,8 @@ class IRCSession:
 
     def disconnect(self,reason):
         if not reason:
-            reason="Unknown reason"
-        self.send("QUIT :%s" % (reason,))
+            reason=u"Unknown reason"
+        self.send("QUIT :%s" % (reason.encode(self.default_encoding,"replace"),))
         self.exit=reason
         self.exited=1
 
