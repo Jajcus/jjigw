@@ -250,7 +250,7 @@ class Channel:
     def debug(self,msg):
 	return self.session.debug(msg)
 
-nick_re=re.compile(r"^[a-z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}][a-z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}0-9-]{0,8}$")
+nick_re=re.compile(r"^[a-zA-Z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}][a-zA-Z\x5b-\x60\x7b-\x7d\[\]\\`_^{|}0-9-]{0,8}$")
 
 class IRCSession:
     commands_dont_show=[]
