@@ -21,6 +21,7 @@
 import libxml2
 from pyxmpp import JID
 from common import JJIGWFatalError,nick8_re,nick_re,normalize
+import os
 
 class ConnectConfig:
     def __init__(self,node):
@@ -87,9 +88,14 @@ class NetworkConfig:
             return 0
 
 class Config:
-    def __init__(self,filename):
+    def __init__(self,config_dir,data_dir):
         self.doc=None
-        parser=libxml2.createFileParserCtxt(filename)
+        self.config_dir=config_dir
+        self.data_dir=data_dir
+        os.chdir(data_dir)
+        libxml2.initializeCatalog()
+        libxml2.loadCatalog(os.path.join(data_dir,"catalog.xml"))
+        parser=libxml2.createFileParserCtxt(os.path.join(config_dir,"jjigw.xml"))
         parser.validate(1)
         parser.parseDocument()
         if not parser.isValid():

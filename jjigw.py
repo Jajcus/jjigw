@@ -21,9 +21,17 @@
 from jjigw.common import JJIGWFatalError
 from jjigw.config import Config
 from jjigw.component import Component
+import sys
+import os.path
+
+config_dir,data_dir=".","."
 
 try:
-    config=Config("jjigw.xml")
+    try:
+        config=Config(config_dir,data_dir)
+    except:
+        print >>sys.stderr,"Couldn't load config file:",str(sys.exc_value)
+        sys.exit(1)
 
     print "creating component..."
     c=Component(config)

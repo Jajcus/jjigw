@@ -3,6 +3,8 @@
 """ Simple Programmable Ident (RFC1413) Daemon """
 
 import sys
+sys.path=sys.path[1:]
+
 import signal
 import socket
 import select

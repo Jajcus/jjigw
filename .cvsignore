@@ -1,3 +1,4 @@
 *.pyc
 pyxmpp
 jjigw.xml
+*.inst
