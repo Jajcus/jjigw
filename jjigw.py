@@ -11,6 +11,8 @@ import sha
 import string
 import random
 import signal
+import Queue
+import time
 
 from pyxmpp import ClientStream,JID,Iq,Presence,Message,StreamError
 import pyxmpp.jabberd
@@ -91,6 +93,11 @@ class ConnectConfig:
 	self.port=int(node.xpathEval("port")[0].getContent())
 	self.secret=node.xpathEval("secret")[0].getContent()
 
+class SPIdentDConfig:
+    def __init__(self,node):
+	node=node.xpathEval("socket")[0]
+	self.socket=node.getContent()
+
 class ServerConfig:
     def __init__(self,node):
 	self.host=node.getContent()
@@ -151,6 +158,11 @@ class Config:
 	self.doc=parser.doc()
 	self.connect=ConnectConfig(self.doc.xpathEval("jjigw/connect")[0])
 	self.network=NetworkConfig(self.doc.xpathEval("jjigw/network")[0])
+	spidentd=self.doc.xpathEval("jjigw/spidentd")
+	if spidentd:
+	    self.spidentd=SPIdentDConfig(spidentd[0])
+	else:
+	    self.spidentd=None
     def __del__(self):
 	if self.doc:
 	    self.doc.freeDoc()
@@ -580,6 +592,7 @@ class IRCSession:
 	self.config=config
 	self.network=config.network
 	self.default_encoding=self.network.default_encoding
+	self.conninfo=None
 	nick=nick.encode(self.default_encoding,"strict")
 	if not self.network.valid_nick(nick):
 	    raise ValueError,"Bad nickname"
@@ -721,6 +734,9 @@ class IRCSession:
 	    if self.socket:
 		self.socket.close()
 		self.socket=None
+	    if self.conninfo:
+		self.component.unregister_connection(self.conninfo)
+		self.conninfo=None
 	finally:
 	    self.lock.release()
 
@@ -729,6 +745,9 @@ class IRCSession:
 	    self.debug("No servers left, quitting")
 	    self.exit="No servers left, quitting"
 	    return
+	if self.conninfo:
+	    self.component.unregister_connection(self.conninfo)
+	    self.conninfo=None
 	if self.socket:
 	    self.socket.close()
 	    self.socket=None
@@ -742,12 +761,17 @@ class IRCSession:
 	    if self.socket:
 		try:
 		    self.socket.close()
+		    if self.conninfo:
+			self.component.unregister_connection(self.conninfo)
+			self.conninfo=None
 		except:
 		    pass
 	    self.socket=None
 	    return
 	self._send("NICK %s" % (self.nick,))
-	user=sha.new(self.jid.bare().as_string()).hexdigest()
+	user=sha.new(self.jid.bare().as_string()).hexdigest()[:64]
+	self.conninfo=ConnectionInfo(self.socket,user)
+	self.component.register_connection(self.conninfo)
 	self._send("USER %s 0 * :JJIGW User %s" % (user,user))
 	self.server=server
 	self.cond.notify()
@@ -1052,6 +1076,78 @@ class IRCSession:
     def print_exception(self):
 	self.component.print_exception()
 
+class ConnectionInfo:
+    def __init__(self,socket,user):
+	self.localip,self.localport=socket.getsockname()
+	self.remoteip,self.remoteport=socket.getpeername()
+	self.user=user
+
+class SPIdentD:
+    def __init__(self,component,config):
+	self.socket_path=config.socket
+	self.component=component
+	self.socket=None
+	self.queue=Queue.Queue(100)
+	self.thread=threading.Thread(target=self.run_thread)
+	self.thread.setDaemon(1)
+	self.thread.start()
+
+    def run_thread(self):
+	while not self.component.shutdown:
+	    self.socket=socket.socket(socket.AF_UNIX)
+	    try:
+		try:
+		    self.socket.connect(self.socket_path)
+		    self.loop()
+		except socket.error:
+		    self.print_exception()
+		    pass
+	    finally:
+		try:
+		    self.socket.close()
+		except:
+		    pass
+		self.socket=None
+		if not self.component.shutdown:
+		    print >>sys.stderr,"Waiting before spidentd connection restart..."
+		    time.sleep(10)
+
+    def loop(self):
+	while not self.component.shutdown:
+	    try:
+		item=self.queue.get(1,1)
+	    except Queue.Empty:
+		continue
+	    while item:
+		try:
+		    if item[0]=="add":
+			ci=item[1]
+			self.socket.send("add %s:%i %s:%i %s\n" % (
+			    ci.localip,ci.localport,ci.remoteip,ci.remoteport,ci.user))
+		    elif item[0]=="remove":
+			ci=item[1]
+			self.socket.send("remove %s:%i %s:%i\n" % (
+			    ci.localip,ci.localport,ci.remoteip,ci.remoteport))
+		except socket.error:
+		    self.queue.put(item)
+		    raise
+		try:
+		    item=self.queue.get(0)
+		except Queue.Empty:
+		    break
+
+    def register_connection(self,conninfo):
+	self.queue.put(("add",conninfo))
+
+    def unregister_connection(self,conninfo):
+	self.queue.put(("remove",conninfo))
+
+    def debug(self,msg):
+	self.component.debug(msg)
+    
+    def print_exception(self):
+	self.component.print_exception()
+
 class Component(pyxmpp.jabberd.Component):
     def __init__(self,config):
 	pyxmpp.jabberd.Component.__init__(self,config.network.jid,
@@ -1063,6 +1159,10 @@ class Component(pyxmpp.jabberd.Component):
 	signal.signal(signal.SIGTERM,self.signal_handler)
 	self.irc_sessions={}
 	self.config=config
+	if config.spidentd:
+	    self.ident_handler=SPIdentD(self,config.spidentd)
+	else:
+	    self.ident_handler=None
 
     def signal_handler(self,signum,frame):
 	self.debug("Signal %i received, shutting down..." % (signum,))
@@ -1279,6 +1379,14 @@ class Component(pyxmpp.jabberd.Component):
 	p=stanza.make_accept_response()
 	self.stream.send(p)
 	return 1
+
+    def register_connection(self,conninfo):
+	if self.ident_handler:
+	    self.ident_handler.register_connection(conninfo)
+
+    def unregister_connection(self,conninfo):
+	if self.ident_handler:
+	    self.ident_handler.unregister_connection(conninfo)
 
 try:
     config=Config("jjigw.xml")

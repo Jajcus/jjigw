@@ -129,7 +129,7 @@ class SocketDriverClient:
 				line,self.buf=self.buf.split("\n",1)
 				return line
 			if len(self.buf)>1024:
-				print >>sys.stderr,"Input line too long"
+				print >>sys.stderr,"Input line too long: %r" % (self.buf,)
 				return None
 			r=self.socket.recv(1024)
 			if not r:
