@@ -10,6 +10,7 @@ import user
 import sha
 import string
 import random
+import signal
 
 from pyxmpp import ClientStream,JID,Iq,Presence,Message,StreamError
 import pyxmpp.jabberd
@@ -347,7 +348,7 @@ class Channel:
 	except (KeyError,ValueError):
 	    pass
 
-    def irc_cmd_324(self,prefix,command,params):
+    def irc_cmd_324(self,prefix,command,params): # RPL_CHANNELMODEIS
 	for m in self.toggle_modes:
 	    try:
 		del self.modes[m]
@@ -495,21 +496,25 @@ class IRCSession:
 	self.jid=jid
 	self.nick=nick
 	self.thread=threading.Thread(name=u"%s on %s as %s" % (jid,config.network.jid,nick),
-		target=self.thread_loop)
-	self.exit=0
+		target=self.thread_run)
+	self.thread.setDaemon(1)
+	self.exit=None
+	self.exited=0
 	self.socket=None
 	self.lock=threading.RLock()
 	self.cond=threading.Condition(self.lock)
 	self.servers_left=self.network.get_servers()
-	self.thread.setDaemon(1)
-	self.thread.start()
 	self.input_buffer=""
 	self.used_for=[]
 	self.server=""
+	self.join_requests=[]
+	self.messages_to_channel=[]
+	self.messages_to_user=[]
 	self.ready=0
 	self.channels={}
 	self.users={}
 	self.user=IRCUser(self,nick)
+	self.thread.start()
 
     def register_user(self,user):
 	self.lock.acquire()
@@ -561,12 +566,22 @@ class IRCSession:
 	    return 0
 
     def thread_run(self):
+	clean_exit=1
 	try:
 	    self.thread_loop()
 	except:
+	    clean_exit=0
 	    self.print_exception()
 	self.lock.acquire()
 	try:
+	    if not self.exited and self.socket:
+		if clean_exit and self.component.shutdown:
+		    self._send("QUIT :JJIGW shutdown")
+		elif clean_exit and self.exit:
+		    self._send("QUIT :%s" % (self.exit.encode(self.default_encoding,"replace")))
+		else:
+		    self._send("QUIT :Internal JJIGW error")
+		self.exited=1
 	    if self.socket:
 		try:
 		    self.socket.close()
@@ -579,10 +594,14 @@ class IRCSession:
 		pass
 	finally:
 	    self.lock.release()
+	for j in self.used_for:
+	    p=Presence(fr=j,to=self.jid,type="unavailable")
+	    self.component.send(p)
+	self.used_for=[]
     
     def thread_loop(self):
 	self.debug("thread_loop()")
-	while not self.exit:
+	while not self.exit and not self.component.shutdown:
 	    self.lock.acquire()
 	    try:
 		if self.socket is None:
@@ -597,7 +616,7 @@ class IRCSession:
 		    self.input_buffer+=self.socket.recv(1024)
 		    while self.input_buffer.find("\r\n")>-1:
 			input,self.input_buffer=self.input_buffer.split("\r\n",1)
-			self._process_input(input)
+			self._safe_process_input(input)
 	    finally:
 		self.lock.release()
 	self.lock.acquire()
@@ -611,7 +630,7 @@ class IRCSession:
     def _try_connect(self):
 	if not self.servers_left:
 	    self.debug("No servers left, quitting")
-	    self.exit=1
+	    self.exit="No servers left, quitting"
 	    return
 	if self.socket:
 	    self.socket.close()
@@ -634,12 +653,14 @@ class IRCSession:
 	user=sha.new(self.jid.bare().as_string()).hexdigest()
 	self._send("USER %s 0 * :JJIGW User %s" % (user,user))
 	self.server=server[0]
-	self.ready=1
 	self.cond.notify()
 
     def _send(self,str):
-	self.debug("IRC OUT: %r" % (str,))
-	self.socket.send(str+"\r\n")
+	if self.socket and not self.exited:
+	    self.debug("IRC OUT: %r" % (str,))
+	    self.socket.send(str+"\r\n")
+	else:
+	    self.debug("ignoring out: %r" % (str,))
 
     def send(self,str):
 	self.lock.acquire()
@@ -648,6 +669,12 @@ class IRCSession:
 	finally:
 	    self.lock.release()
 
+    def _safe_process_input(self,input):
+	try:
+	    self._process_input(input)
+	except:
+	    self.print_exception()
+    
     def _process_input(self,input):
 	self.debug("Server message: %r" % (input,))
 	split=input.split(" ")
@@ -723,13 +750,79 @@ class IRCSession:
 	body=unicode(params[1],self.default_encoding,"replace")
 	m=Message(type=typ,fr=fr,to=self.jid,body=remove_evil_characters(strip_colors(body)))
 	self.component.send(m)
+
+    def login_error(self,join_condition,message_condition):
+	self.lock.acquire()
+	try:
+	    if join_condition:
+		for s in self.join_requests:
+		    p=s.make_error_response(join_condition)
+		    self.component.send(p)
+		    try:
+			self.used_for.remove(s.get_to())
+		    except ValueError:
+			pass
+		self.join_requests=[]
+	    if message_condition:
+		for s in self.messages_to_user+self.messages_to_channel:
+		    p=s.make_error_response(message_condition)
+		    self.component.send(p)
+		self.messages_to_user=[]
+		self.messages_to_channel=[]
+	    self.exit="IRC user registration failed"
+	finally:
+	    self.lock.release()
+
+    def irc_cmd_001(self,prefix,command,params): # RPL_WELCOME
+	self.lock.acquire()
+	try:
+	    self.debug("Connected successfully")
+	    self.ready=1
+	    for s in self.join_requests:
+		self.join(s)
+	    for s in self.messages_to_user:
+		self.message_to_user(s)
+	    for s in self.messages_to_channel:
+		self.message_to_channel(s)
+	finally:
+	    self.lock.release()
+
+    def irc_cmd_431(self,prefix,command,params): # ERR_NONICKNAMEGIVEN
+	if self.ready:
+	    return
+	self.login_error("undefined-condition","not-authorized")
+ 
+    def irc_cmd_432(self,prefix,command,params): # ERR_ERRONEUSNICKNAME
+	if self.ready:
+	    return
+	self.login_error("bad-request","not-authorized")
+ 
+    def irc_cmd_433(self,prefix,command,params): # ERR_NICKNAMEINUSE
+	if self.ready:
+	    return
+	self.login_error("conflict","not-authorized")
+ 
+    def irc_cmd_436(self,prefix,command,params): # ERR_NICKCOLLISION
+	if self.ready:
+	    return
+	self.login_error("conflict","not-authorized")
+ 
+    def irc_cmd_437(self,prefix,command,params): # ERR_UNAVAILRESOURCE
+	if self.ready:
+	    return
+	self.login_error("resource-constraint","not-authorized")
+ 
+    def irc_cmd_437(self,prefix,command,params): # ERR_RESTRICTED
+	if self.ready:
+	    return
+	pass
  
     def irc_cmd_QUIT(self,prefix,command,params):
 	user=self.get_user(prefix)
 	user.leave_all()
 	self.unregister_user(user)
 
-    def irc_cmd_352(self,prefix,command,params):
+    def irc_cmd_352(self,prefix,command,params): # RPL_WHOREPLY
 	self.debug("WHO reply received")
 	if len(params)<7:
 	    self.debug("too short - ignoring")
@@ -765,26 +858,29 @@ class IRCSession:
 	self.component.send(m)
 
     def join(self,stanza):
+	self.cond.acquire()
+	try:
+	    if not self.ready:
+		self.join_requests.append(stanza)
+		return
+	finally:
+	    self.cond.release()
 	to=stanza.get_to()
 	channel=node_to_channel(to.node,self.default_encoding)
 	if self.channels.has_key(normalize(channel)):
-	    return
-	self.cond.acquire()
-	try:
-	    # FIXME: may hang the main thread
-	    while not self.ready and not self.exit:
-		self.cond.wait()
-	finally:
-	    self.cond.release()
-	if self.exit:
 	    return
 	channel=Channel(self,channel)
 	channel.join(stanza)
 	self.channels[normalize(channel.name)]=channel
 
     def message_to_channel(self,stanza):
-	if not self.ready:
-	    return
+	self.cond.acquire()
+	try:
+	    if not self.ready:
+		self.messages_to_channel.append(stanza)
+		return
+	finally:
+	    self.cond.release()
 	channel=stanza.get_to().node
 	channel=node_to_channel(channel,self.default_encoding)
 	if not channel_re.match(channel):
@@ -800,8 +896,13 @@ class IRCSession:
 	    channel.irc_cmd_PRIVMSG(self.nick,"PRIVMSG",[channel.name,body])
 
     def message_to_user(self,stanza):
-	if not self.ready:
-	    return
+	self.cond.acquire()
+	try:
+	    if not self.ready:
+		self.messages_to_user.append(stanza)
+		return
+	finally:
+	    self.cond.release()
 	to=stanza.get_to()
 	if to.resource and (to.node[0] in "#+!" or to.node.startswith(",amp,")):
 	    nick=to.resource
@@ -826,7 +927,8 @@ class IRCSession:
 	if not reason:
 	    reason="Unknown reason"
 	self.send("QUIT :%s" % (reason,))
-	self.exit=1
+	self.exit=reason
+	self.exited=1
 
     def debug(self,msg):
 	self.component.debug(msg)
@@ -839,9 +941,37 @@ class Component(pyxmpp.jabberd.Component):
 	pyxmpp.jabberd.Component.__init__(self,config.network.jid,
 		config.connect.secret,config.connect.host,config.connect.port,
 		category="gateway",type="irc")
-	self.exit=0
+	self.shutdown=0
+	signal.signal(signal.SIGINT,self.signal_handler)
+	signal.signal(signal.SIGTERM,self.signal_handler)
 	self.irc_sessions={}
 	self.config=config
+
+    def signal_handler(self,signum,frame):
+	self.debug("Signal %i received, shutting down..." % (signum,))
+	self.shutdown=1
+
+    def run(self,timeout):
+	self.connect()
+	while (not self.shutdown and self.stream 
+		and not self.stream.eof and self.stream.socket is not None):
+	    self.stream.loop_iter(timeout)
+	if self.shutdown:
+	    for sess in self.irc_sessions.values():
+		sess.disconnect("JJIGW shutdown")
+	threads=threading.enumerate()
+	for th in threads:
+	    try:
+		th.join(10*timeout)
+	    except:
+		pass
+	for th in threads:
+	    try:
+		th.join(timeout)
+	    except:
+		pass
+	self.disconnect()
+	self.debug("Exitting normally")
 
     def send(self,stanza):
 	self.get_stream().send(stanza)
@@ -1039,17 +1169,7 @@ config=Config("jjigw.xml")
 print "creating component..."
 c=Component(config)
 
-print "connecting..."
-c.connect()
-
-print "looping..."
-try:
-    c.loop(1)
-except KeyboardInterrupt:
-    print "disconnecting..."
-    c.disconnect()
-    pass
-
-print "exiting..."
+print "starting..."
+c.run(1)
 
 # vi: sw=4 ts=8 sts=4
