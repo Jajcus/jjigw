@@ -1,5 +1,10 @@
 2004-02-08  Jacek Konieczny  <jajcus@bnet.pl>
 
+	* jjigw.py:
+	- topic change support
+	- muc status codes handling updated for the latest PyXMPP
+	- SIGPIPE handling
+
 	* jjigw.xml.example:
 	- example updated
 
