@@ -1,3 +1,14 @@
+2004-02-07  Jacek Konieczny  <jajcus@bnet.pl>
+
+	* jjigw.py:
+	- configuration file validation
+
+	* jjigw.dtd, jjigw.xml.example:
+	- root element of config file is 'jjigw', not 'jjit'
+
+	* jjigw.dtd, jjigw.xml.example:
+	- DTD for configuration file added
+
 2004-02-02  Jacek Konieczny  <jajcus@bnet.pl>
 
 	* README:
