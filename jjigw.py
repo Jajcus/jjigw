@@ -46,9 +46,12 @@ class Config:
 
 
 evil_characters_re=re.compile(r"[\000-\010\013\014\016-\037]")
-
 def remove_evil_characters(s):
     return evil_characters_re.sub(" ",s)
+
+color_re=re.compile(r"\x03\d\d|\x0f")
+def strip_colors(s):
+    return color_re.sub("",s)
 
 numeric_re=re.compile(r"\d\d\d")
 channel_re=re.compile(r"^[&#+!][^\000 \007 ,:\r\n]{1,49}$")
@@ -107,6 +110,7 @@ def normalize(s):
 
 class IRCUser:
     def __init__(self,session,nick,user="",host=""):
+	self.sync_delay=0
 	self.session=session
 	if "!" in nick:
 	    nick,tmp=nick.split("!",1)
@@ -122,14 +126,21 @@ class IRCUser:
 	self.channels={}
 	self.current_thread=None
 
+    def sync_in_channel(self,channel):
+	if self.sync_delay>0:
+	    return
+	elif self.sync_delay<0:
+	    self.debug("Warning: %r.sync_delay<0" % (self,))
+	return channel.sync_user(self)
+
     def join_channel(self,channel):
 	self.channels[normalize(channel.name)]=channel
-	channel.sync_user(self)
+	self.sync_in_channel(channel)
 
     def leave_channel(self,channel):
 	try:
 	    del self.channels[normalize(channel.name)]
-	    channel.sync_user(self)
+	    self.sync_in_channel(channel)
 	except KeyError:
 	    pass
 
@@ -139,7 +150,7 @@ class IRCUser:
 
     def sync_all(self):
 	for channel in self.channels.values():
-	    channel.sync_user(self)
+	    self.sync_in_channel(channel)
 
     def whoreply(self,params):
 	if params[4]!=self.nick:
@@ -156,23 +167,27 @@ class IRCUser:
 		return
 	else:
 	    channel=None
-	self.nick=nick
-	self.host=host
-	self.user=user
-	if channel:
-	    self.debug("Channel: %r" % (channel,))
-	    self.join_channel(channel)
-	    if "@" in flags:
-		channel.set_mode("o",self)
-	    elif "+" in flags:
-		channel.set_mode("v",self)
+	self.sync_delay+=1
+	try:
+	    self.nick=nick
+	    self.host=host
+	    self.user=user
+	    if channel:
+		self.debug("Channel: %r" % (channel,))
+		self.join_channel(channel)
+		if "@" in flags:
+		    channel.set_mode("o",self)
+		elif "+" in flags:
+		    channel.set_mode("v",self)
+		else:
+		    channel.reset_mode("o",self)
+		    channel.reset_mode("v",self)
+	    if "G" in flags:
+		self.mode["a"]=1
 	    else:
-		channel.reset_mode("o",self)
-		channel.reset_mode("v",self)
-	if "G" in flags:
-	    self.mode["a"]=1
-	else:
-	    self.mode["a"]=0
+		self.mode["a"]=0
+	finally:
+	    self.sync_delay-=1
 	if channel:
 	    channel.sync_user(self)
 
@@ -409,7 +424,11 @@ class Channel:
 	if nprefix==nnick or nprefix.startswith(nnick+"!"):
 	    if self.state=="join":
 		self.debug("Channel %r joined!" % (self.name,))
-		self.session.user.join_channel(self)
+		self.session.user.sync_delay+=1
+		try:
+		    self.session.user.join_channel(self)
+		finally:
+		    self.session.user.sync_delay-=1
 		self.state="joined"
 		self.stanza=None
 		self.session.send("MODE %s" % (self.name,))
@@ -441,7 +460,7 @@ class Channel:
 	    self.CTCP(prefix,body[1:-1])
 	else:
 	    m=Message(type="groupchat",fr=self.prefix_to_jid(prefix),to=self.session.jid,
-		    body=remove_evil_characters(body))
+		    body=remove_evil_characters(strip_colors(body)))
 	    self.session.component.send(m)
     
     def CTCP(self,prefix,command):
@@ -451,7 +470,7 @@ class Channel:
 	    arg=None
 	if command=="ACTION":
 	    m=Message(type="groupchat",fr=self.prefix_to_jid(prefix),to=self.session.jid,
-		    body="/me "+remove_evil_characters(arg))
+		    body="/me "+remove_evil_characters(strip_colors(arg)))
 	    self.session.component.send(m)
 	else:
 	    self.debug("Unknown CTCP command: %r %r" % (command,arg))
@@ -702,7 +721,7 @@ class IRCSession:
 	if not fr:
 	    fr=user.jid()
 	body=unicode(params[1],self.default_encoding,"replace")
-	m=Message(type=typ,fr=fr,to=self.jid,body=remove_evil_characters(body))
+	m=Message(type=typ,fr=fr,to=self.jid,body=remove_evil_characters(strip_colors(body)))
 	self.component.send(m)
  
     def irc_cmd_QUIT(self,prefix,command,params):
