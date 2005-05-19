@@ -205,6 +205,7 @@ def input_thread(sock,addr):
                 except socket.error,e:
                         if e.args[0]==errno.EINTR:
                                 continue
+                        r=None
                 if not r:
                         print >>sys.stderr,"No query"
                         sock.close()
