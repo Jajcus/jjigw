@@ -20,7 +20,8 @@
 import string
 import logging
 
-from pyxmpp import Message,JID
+from pyxmpp.message import Message
+from pyxmpp.jid import JID
 from pyxmpp.jabber.muc import MucPresence,MucItem,MucStatus
 
 from requests import Request,RequestQueue

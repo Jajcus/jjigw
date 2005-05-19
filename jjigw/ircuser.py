@@ -19,7 +19,7 @@
 
 import logging
 
-from pyxmpp import JID
+from pyxmpp.jid import JID
 
 from common import normalize,nick_to_node
 

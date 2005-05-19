@@ -19,7 +19,7 @@
 
 
 import libxml2
-from pyxmpp import JID
+from pyxmpp.jid import JID
 from common import JJIGWFatalError,nick8_re,nick_re,normalize
 import os
 

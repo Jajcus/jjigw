@@ -26,7 +26,9 @@ import string
 import random
 import logging
 
-from pyxmpp import Message,Presence,JID
+from pyxmpp.message import Message
+from pyxmpp.presence import Presence
+from pyxmpp.jid import JID
 from pyxmpp.jabber.muc import MucPresence
 
 from ircuser import IRCUser
@@ -679,10 +681,11 @@ class IRCSession:
         body=stanza.get_body()
         if body:
             body=body.encode(encoding,"replace")
-            body=body.replace("\n"," ").replace("\r"," ")
+            body=body.replace("\r"," ")
             if body.startswith("/me "):
                 body="\001ACTION "+body[4:]+"\001"
-            self.send("PRIVMSG %s :%s" % (channel.name,body))
+            for line in body.split("\n"):
+                self.send("PRIVMSG %s :%s" % (channel.name,line))
             channel.irc_cmd_PRIVMSG(self.nick,"PRIVMSG",[channel.name,body])
 
     def message_to_user(self,stanza):
@@ -715,10 +718,11 @@ class IRCSession:
         user=self.get_user(nick)
         user.current_thread=stanza.get_type(),stanza.get_thread(),thread_fr
         body=stanza.get_body().encode(self.default_encoding,"replace")
-        body=body.replace("\n"," ").replace("\r"," ")
+        body=body.replace("\r"," ")
         if body.startswith("/me "):
             body="\001ACTION "+body[4:]+"\001"
-        self.send("PRIVMSG %s :%s" % (nick,body))
+        for line in body.split("\n"):
+            self.send("PRIVMSG %s :%s" % (nick,line))
 
     def disconnect(self,reason):
         if not reason:

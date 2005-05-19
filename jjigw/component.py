@@ -23,18 +23,21 @@ import threading
 import string
 import logging
 
-import pyxmpp.jabberd
-from pyxmpp import Presence,Message,StreamError,FatalStreamError,JID
-from pyxmpp.jabber.muc import MUC_ADMIN_NS,MUC_NS
-from pyxmpp.jabber.muc import MucPresence,MucIq,MucAdminQuery
+import pyxmpp.jabberd.component
+from pyxmpp.presence import Presence
+from pyxmpp.message import Message
+from pyxmpp.streambase import StreamError,FatalStreamError
+from pyxmpp.jid import JID
+from pyxmpp.jabber.muccore import MUC_ADMIN_NS,MUC_NS
+from pyxmpp.jabber.muccore import MucPresence,MucIq,MucAdminQuery
 from pyxmpp.jabber.disco import DiscoItems,DiscoItem,DiscoInfo,DiscoIdentity
 
 from ircsession import IRCSession
 from spidentd import SPIdentD
 
-class Component(pyxmpp.jabberd.Component):
+class Component(pyxmpp.jabberd.component.Component):
     def __init__(self,config,profile=False):
-        pyxmpp.jabberd.Component.__init__(self,config.jid,
+        pyxmpp.jabberd.component.Component.__init__(self,config.jid,
                 config.connect.secret,config.connect.host,config.connect.port,
                 disco_category="gateway",disco_type="irc")
         self.__logger=logging.getLogger("jjigw.Component")
@@ -109,7 +112,7 @@ class Component(pyxmpp.jabberd.Component):
         print "*** State changed: %s %r ***" % (state,arg)
 
     def authenticated(self):
-        pyxmpp.jabberd.Component.authenticated(self)
+        pyxmpp.jabberd.component.Component.authenticated(self)
         self.stream.set_iq_get_handler("query","jabber:iq:version",self.get_version)
         self.stream.set_iq_get_handler("query","jabber:iq:register",self.get_register)
         self.stream.set_iq_set_handler("query","jabber:iq:register",self.set_register)
