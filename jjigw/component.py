@@ -302,7 +302,7 @@ class Component(pyxmpp.jabberd.component.Component):
                 self.send(p)
                 return 1
             if show in ("away", "xa", "dnd"):
-                sess.set_away()
+                sess.set_away(status)
             else:
                 sess.set_back()
         else:
