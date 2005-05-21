@@ -52,6 +52,8 @@ class IRCSession:
             raise ValueError,"Bad nickname"
         self.jid=jid
         self.nick=nick
+        # Insert some sort of password lookup here if required
+        self.password=self.network.password
         if self.component.profile:
             ttarget=self.thread_run_prof
         else:
@@ -286,11 +288,19 @@ class IRCSession:
         if self.raw_channel:
             self.pass_message_to_raw_channel("Connected.")
         self.__logger.debug("Connected.")
+        if self.password:
+            self._send("PASS %s" % (self.password,))
         self._send("NICK %s" % (self.nick,))
         user=md5.new(self.jid.bare().as_string()).hexdigest()[:64]
         self.conninfo=ConnectionInfo(self.socket,user)
         self.component.register_connection(self.conninfo)
-        self._send("USER %s 0 * :JJIGW User %s" % (user,user))
+        # If we had to issue a password, then chances are the server
+        # is going to be anal about what we pass for the USER.
+        # In this case, don't bother sending the hash.
+        if self.password:
+            self._send("USER %s 0 * :JJIGW User %s" % (self.nick, user) )
+        else:
+            self._send("USER %s 0 * :JJIGW User %s" % (user,user))
         self.server=server
         self.cond.notify()
 
@@ -356,6 +366,11 @@ class IRCSession:
             self.lock.acquire()
 
     def irc_cmd_PING(self,prefix,command,params):
+        # TODO: If this were implemented absolutely correctly,
+        # shouldn't this ping be sent to the client instead
+        # of immediately sending it back to the server?
+        # Otherwise, it will not give you an accurate reading
+        # of lag.
         self.send("PONG %s" % (params[0],))
 
     def irc_cmd_NICK(self,prefix,command,params):

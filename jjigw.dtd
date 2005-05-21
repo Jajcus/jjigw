@@ -15,6 +15,7 @@
 <!ATTLIST network 
 	jid 		CDATA		#REQUIRED
 	name		CDATA		#IMPLIED
+	password	CDATA		#IMPLIED
 	encoding 	CDATA		"us-ascii"
 	nicks_8bit	(yes|no)	"no"
 	max_nick_length CDATA		"9"

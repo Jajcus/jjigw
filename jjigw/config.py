@@ -79,6 +79,7 @@ class NetworkConfig:
         self.name=node.prop("name")
         self.max_nick_length=int(node.prop("max_nick_length"))
         self.max_channel_length=int(node.prop("max_nick_length"))
+        self.password=node.prop("password")
     def get_servers(self):
         r=self.servers
         self.servers=self.servers[-1:]+self.servers[:-1]
