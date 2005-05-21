@@ -304,6 +304,12 @@ class IRCSession:
         self.server=server
         self.cond.notify()
 
+    def set_away(self,status):
+        self.send("AWAY :%s" % (status))
+
+    def set_back(self):
+        self.send("AWAY")
+
     def _send(self,str):
         if self.socket and not self.exited:
             self.__logger.debug("IRC OUT: %r" % (str,))

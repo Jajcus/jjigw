@@ -281,12 +281,16 @@ class Component(pyxmpp.jabberd.component.Component):
         return 1
 
     def presence_available(self,stanza):
-        nick=None
-        to=stanza.get_to()
-        fr=stanza.get_from()
-        status=stanza.get_status()
+        nick = None
+        to = stanza.get_to()
+        fr = stanza.get_from()
+        status = stanza.get_status()
+        show = stanza.get_show()
         if not status:
-            status="Unknown"
+            if not show:
+                status = "Unknown"
+            else:
+                status = show
         if to.node and not to.resource:
             p=stanza.make_error_response("bad-request")
             self.send(p)
@@ -297,6 +301,10 @@ class Component(pyxmpp.jabberd.component.Component):
                 p=stanza.make_error_response("conflict")
                 self.send(p)
                 return 1
+            if show in ("away", "xa", "dnd"):
+                sess.set_away()
+            else:
+                sess.set_back()
         else:
             nick=to.resource
             if not nick:
