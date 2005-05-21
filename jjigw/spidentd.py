@@ -41,7 +41,7 @@ class SPIdentD:
                     self.socket.connect(self.socket_path)
                     self.loop()
                 except socket.error:
-                    self.__logger.exception("Exception cought:")
+                    self.__logger.exception("Exception cought for path \"%s\":" % (self.socket_path))
                     pass
             finally:
                 try:
