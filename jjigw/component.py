@@ -39,7 +39,7 @@ class Component(pyxmpp.jabberd.component.Component):
     def __init__(self,config,profile=False):
         pyxmpp.jabberd.component.Component.__init__(self,config.jid,
                 config.connect.secret,config.connect.host,config.connect.port,
-                disco_category="gateway",disco_type="irc")
+                disco_name="JJIGW IRC gateway", disco_category="conference",disco_type="irc")
         self.__logger=logging.getLogger("jjigw.Component")
         self.profile=profile
         self.shutdown=0
@@ -53,6 +53,8 @@ class Component(pyxmpp.jabberd.component.Component):
             self.ident_handler=SPIdentD(self,config.spidentd)
         else:
             self.ident_handler=None
+        self.disco_info.add_identity("JJIGW IRC gateway", "conference", "text") # MUC compliance
+        self.disco_info.add_identity("JJIGW IRC gateway", "gateway", "x-irc") # non-conference gateway services
 
     def get_session(self,user_jid,component_jid):
         return self.irc_sessions.get((user_jid.as_unicode(),component_jid.domain))
@@ -366,7 +368,9 @@ class Component(pyxmpp.jabberd.component.Component):
                     name=network.name
                 else:
                     name="IRC gateway"
-                DiscoIdentity(di,name,"gateway","irc")
+                DiscoIdentity(di,name,"conference","irc")
+                DiscoIdentity(di,name,"conference","text")
+                DiscoIdentity(di,name,"gateway","x-irc")
             return di
         elif len(to.node)>1 and to.node[0] in u"&#+!" and to.resource is None:
             di=DiscoInfo()
@@ -375,7 +379,8 @@ class Component(pyxmpp.jabberd.component.Component):
                 name="%s channel on %s IRC network" % (to.node,network.name)
             else:
                 name="%s IRC channel" % (to.node,)
-            DiscoIdentity(di,name ,"conference","text")
+            DiscoIdentity(di, name, "conference", "text")
+            DiscoIdentity(di, name, "conference", "irc")
             return di
         return iq.make_error_response("feature-not-implemented")
 
