@@ -1,0 +1,13 @@
+--- IMPORTANT ---
+
+SVN repository for JJIGW has been moved. The new URL is:
+
+	http://jjigw.jajcus.net/svn/jjigw/
+
+To switch your working copy to the new repository do:
+
+svn switch --relocate svn://svn.jabberstudio.org/jjigw/svn/ http://jjigw.jajcus.net/svn/jjigw/
+
+For more current information about JJIGW see the new web site (when it is ready):
+
+	http://jjigw.jajcus.net
