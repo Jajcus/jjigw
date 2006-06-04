@@ -1,7 +1,7 @@
 #!/usr/bin/python -u
 #
 #  Jajcus' Jabber to IRC Gateway
-#  Copyright (C) 2004  Jacek Konieczny <jajcus@bnet.pl>
+#  Copyright (C) 2004  Jacek Konieczny <jajcus@jajcus.net>
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
