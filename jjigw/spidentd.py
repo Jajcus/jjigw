@@ -21,6 +21,7 @@ import Queue
 import threading
 import socket
 import logging
+import time
 
 class SPIdentD:
     def __init__(self,component,config):
@@ -50,7 +51,7 @@ class SPIdentD:
                     pass
                 self.socket=None
                 if not self.component.shutdown:
-                    print >>sys.stderr,"Waiting before spidentd connection restart..."
+                    self.__logger.info("Waiting before spidentd connection restart...")
                     time.sleep(10)
 
     def loop(self):
