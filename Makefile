@@ -32,8 +32,8 @@ EXTRA_DIST=jjigw.py jjigw.dtd spidentd.py catalog.xml
 all: version jjigw.py.inst catalog.xml.inst
 
 version:
-	if test -f "SVN/Entries" ; then \
-		echo "version='$(VERSION)+svn'" > jjigw/version.py ; \
+	if test -d ".git" ; then \
+		echo "version='$(VERSION)+git'" > jjigw/version.py ; \
 	fi
 
 jjigw.py.inst: jjigw.py
@@ -47,11 +47,10 @@ catalog.xml.inst: catalog.xml
 		catalog.xml > catalog.xml.inst
 
 ChangeLog: 
-	test -f .svn/entries && make cl-stamp || :
+	test -d .git && make cl-stamp || :
 	
-cl-stamp: .svn/entries
-	TZ=UTC svn log -v --xml \
-		| aux/svn2log.py -p '/(branches/[^/]+|trunk)' -x ChangeLog -u aux/users -F
+cl-stamp: .git
+	git log > ChangeLog
 	touch cl-stamp
 
 cosmetics:
