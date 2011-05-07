@@ -1,0 +1,4 @@
+*.pyc
+jjigw.py.inst
+jjigw/version.py
+catalog.xml.inst
